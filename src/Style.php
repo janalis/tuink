@@ -32,7 +32,8 @@ final class Style
         public readonly array $attributes = [],
         public readonly ?string $foreground = null,
         public readonly ?string $background = null,
-    ) {}
+    ) {
+    }
 
     public static function fromSgr(string $sgr): self
     {

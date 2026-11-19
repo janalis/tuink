@@ -26,7 +26,7 @@ use Symfony\Component\Tui\Tui;
  * slices, so timers, intervals and async work progress as they would under
  * Tui::run(), and the Tui itself stays reachable for focus and widget checks.
  */
-final class InProcessDriver implements DriverInterface, WidgetTreeProvider
+final class InProcessDriver implements DriverInterface, WidgetTreeProviderInterface
 {
     /** @var \Closure(VirtualTerminal): mixed */
     private readonly \Closure $factory;

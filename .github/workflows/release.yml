@@ -1,0 +1,138 @@
+name: Release
+# Actions → Release → Run workflow (on main). Moves CHANGELOG.md's [Unreleased] section to the new
+# version with janalis/bumpversion, runs every gate, commits and tags the release, then publishes the
+# GitHub release with that section as its notes and has Packagist index the tag.
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Exact SemVer version, or major | minor | patch'
+        required: true
+        default: minor
+      dry_run:
+        description: 'Prepare and verify without pushing or publishing'
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  build:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ${{ vars.CI_RUNNER || 'ubuntu-latest' }}
+    timeout-minutes: 60
+    permissions:
+      contents: write
+    outputs:
+      tag: ${{ steps.metadata.outputs.tag }}
+      version: ${{ steps.metadata.outputs.version }}
+      sha: ${{ steps.commit.outputs.sha }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.5'
+          coverage: pcov
+          ini-values: zend.assertions=1
+          extensions: mbstring, pcntl, posix
+          tools: composer
+      - run: composer update --no-interaction --no-progress
+      - run: make tools
+      - name: Prepare the version and the changelog
+        env:
+          REQUESTED_VERSION: ${{ inputs.version }}
+        run: tools/bumpversion/vendor/bin/bumpversion release:prepare "$REQUESTED_VERSION" --tag-prefix=v
+      - name: Read the release metadata and notes
+        id: metadata
+        run: |
+          tools/bumpversion/vendor/bin/bumpversion release:notes --tag-prefix=v --format=json > "$RUNNER_TEMP/release.json"
+          test "$(cat VERSION)" = "$(jq -r .version "$RUNNER_TEMP/release.json")"
+          jq -r .notes "$RUNNER_TEMP/release.json" > "$RUNNER_TEMP/release-notes.md"
+          jq -r '"tag=\(.tag)\nversion=\(.version)"' "$RUNNER_TEMP/release.json" >> "$GITHUB_OUTPUT"
+      - run: git diff
+      # Every gate CI runs, mutation testing included
+      - run: make verify
+      - name: Commit and tag the release
+        if: ${{ !inputs.dry_run }}
+        env:
+          RELEASE_TAG: ${{ steps.metadata.outputs.tag }}
+          RELEASE_ACTOR: ${{ github.actor }}
+          RELEASE_ACTOR_ID: ${{ github.actor_id }}
+        run: |
+          git config user.name "$RELEASE_ACTOR"
+          git config user.email "$RELEASE_ACTOR_ID+$RELEASE_ACTOR@users.noreply.github.com"
+          git commit -m "Release $RELEASE_TAG" -- VERSION bumpversion.yaml.dist CHANGELOG.md
+          git tag -a "$RELEASE_TAG" -m "$RELEASE_TAG"
+          git push --atomic origin HEAD:main "refs/tags/$RELEASE_TAG"
+      - name: Record the release commit
+        id: commit
+        run: echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+      - uses: actions/upload-artifact@v7
+        with:
+          name: release-notes
+          path: ${{ runner.temp }}/release-notes.md
+
+  # Jobs of their own, so a failed publication can be retried without cutting the release again
+  publish:
+    if: ${{ !inputs.dry_run }}
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.build.outputs.sha }}
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.5'
+          coverage: none
+          tools: composer
+      - run: composer update --no-interaction --no-progress
+      - run: make tools
+      - uses: actions/download-artifact@v8
+        with:
+          name: release-notes
+          path: ${{ runner.temp }}
+      - name: Publish the GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_REPOSITORY: ${{ github.repository }}
+          RELEASE_VERSION: ${{ needs.build.outputs.version }}
+          RELEASE_SHA: ${{ needs.build.outputs.sha }}
+        run: >-
+          tools/bumpversion/vendor/bin/bumpversion release:github --repository="$RELEASE_REPOSITORY"
+          --release-version="$RELEASE_VERSION" --commit="$RELEASE_SHA" --tag-prefix=v
+          --notes-file="$RUNNER_TEMP/release-notes.md"
+
+  packagist:
+    if: ${{ !inputs.dry_run && vars.PACKAGIST_ENABLED == 'true' }}
+    needs: [build, publish]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.build.outputs.sha }}
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.5'
+          coverage: none
+          tools: composer
+      - run: composer update --no-interaction --no-progress
+      - run: make tools
+      - name: Refresh and verify the Packagist release
+        env:
+          PACKAGIST_USERNAME: ${{ secrets.PACKAGIST_USERNAME }}
+          PACKAGIST_TOKEN: ${{ secrets.PACKAGIST_TOKEN }}
+          RELEASE_VERSION: ${{ needs.build.outputs.version }}
+          RELEASE_SHA: ${{ needs.build.outputs.sha }}
+        run: >-
+          tools/bumpversion/vendor/bin/bumpversion release:packagist --release-version="$RELEASE_VERSION"
+          --commit="$RELEASE_SHA" --package=janalis/tuink

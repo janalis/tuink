@@ -17,7 +17,7 @@ use Janalis\Tuink\Selector\WidgetTree;
 /**
  * A driver that can show the application's widget tree, for CSS selectors.
  */
-interface WidgetTreeProvider
+interface WidgetTreeProviderInterface
 {
     /**
      * The widget tree as of the last frame.

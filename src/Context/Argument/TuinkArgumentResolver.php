@@ -23,7 +23,8 @@ final class TuinkArgumentResolver implements ArgumentResolver
 {
     public function __construct(
         private readonly Tuink $tuink,
-    ) {}
+    ) {
+    }
 
     public function resolveArguments(\ReflectionClass $classReflection, array $arguments): array
     {

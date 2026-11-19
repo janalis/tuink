@@ -25,7 +25,8 @@ final class TuinkArgumentResolverTest extends TestCase
             public function __construct(
                 public Tuink $tuink,
                 public string $other,
-            ) {}
+            ) {
+            }
         };
 
         $arguments = new TuinkArgumentResolver($tuink)->resolveArguments(new \ReflectionClass($context), ['other' => 'x']);
@@ -40,7 +41,8 @@ final class TuinkArgumentResolverTest extends TestCase
         $context = new class($tuink) {
             public function __construct(
                 public Tuink $tuink,
-            ) {}
+            ) {
+            }
         };
         $resolver = new TuinkArgumentResolver($tuink);
 

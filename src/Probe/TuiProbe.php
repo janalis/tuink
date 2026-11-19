@@ -43,7 +43,8 @@ final class TuiProbe
     private function __construct(
         private readonly Tui $tui,
         private $socket,
-    ) {}
+    ) {
+    }
 
     /**
      * Connects to the driver when TUINK_PROBE names its socket.

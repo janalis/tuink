@@ -1,10 +1,13 @@
 # Mago configuration — https://mago.carthage.software
 #
-# The Symfony coding standard, spelled out because mago ships no symfony preset:
+# The Symfony coding standard (https://symfony.com/doc/current/contributing/code/standards.html).
+# mago has no symfony preset, and the standard is PSR-12 plus Symfony's own rules,
+# so the formatter starts from the psr-12 preset and spells those rules out:
 # single quotes, next-line braces for classes and methods, no spaces around
-# concatenation, a blank line before `return`, ordered imports. The formatter
-# never re-wraps: a wide print width plus "preserve breaking" keeps every line
-# where its author put it.
+# concatenation, a blank line before `return`, ordered imports, trailing commas
+# in multiline arrays and calls. The linter adds Yoda conditions, `++$i`, and the
+# Interface and Trait suffixes. The formatter never re-wraps: a wide print width
+# plus "preserve breaking" keeps every line where its author put it.
 
 # The lowest PHP tuink supports, so nothing newer slips in
 php-version = "8.4"
@@ -14,6 +17,9 @@ paths = ["src", "tests", "example", "features/bootstrap", "behat.dist.php"]
 includes = ["vendor"]
 
 [formatter]
+preset = "psr-12"
+# The preset pads grouping parentheses, which neither PSR-12 nor Symfony does
+space-within-grouping-parenthesis = false
 print-width = 200
 preserve-breaking-argument-list = true
 preserve-breaking-parameter-list = true
@@ -50,6 +56,9 @@ excessive-parameter-list = { threshold = 12 }
 kan-defect = { threshold = 4 }
 halstead = { volume-threshold = 1189, effort-threshold = 8471, difficulty-threshold = 14 }
 assertion-style = { style = "this" }
+interface-name = { psr = true }
+trait-name = { psr = true }
+prefer-pre-increment = { enabled = true, level = "warning" }
 yoda-conditions = { enabled = true, level = "warning", mode = "require" }
 ambiguous-function-call = { enabled = true, level = "warning" }
 ambiguous-constant-access = { enabled = true, level = "warning" }

@@ -19,7 +19,8 @@ final class InjectedContext implements Behat\Behat\Context\Context
 {
     public function __construct(
         private readonly Tuink $tuink,
-    ) {}
+    ) {
+    }
 
     #[Then('the status line should say :text')]
     public function statusLine(string $text): void

@@ -31,7 +31,8 @@ final class SessionListener implements EventSubscriberInterface
 
     public function __construct(
         private readonly Tuink $tuink,
-    ) {}
+    ) {
+    }
 
     public static function getSubscribedEvents(): array
     {

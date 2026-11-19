@@ -30,7 +30,7 @@ use Symfony\Component\Tui\Tui;
  * Every step works on both drivers. On the process driver, the steps with CSS
  * selectors need the application to install TuiProbe; see the README.
  */
-class TuiContext implements TuinkAwareContext
+class TuiContext implements TuinkAwareContextInterface
 {
     use TuinkAwareTrait;
 

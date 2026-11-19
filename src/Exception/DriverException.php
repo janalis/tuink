@@ -14,4 +14,6 @@ namespace Janalis\Tuink\Exception;
 /**
  * Thrown when a driver cannot start or drive the application.
  */
-final class DriverException extends \RuntimeException {}
+final class DriverException extends \RuntimeException
+{
+}

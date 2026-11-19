@@ -17,7 +17,7 @@ use Janalis\Tuink\Tuink;
 /**
  * A context that receives the Tuink manager when it is created.
  */
-interface TuinkAwareContext extends Context
+interface TuinkAwareContextInterface extends Context
 {
     public function setTuink(Tuink $tuink): void;
 }

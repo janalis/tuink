@@ -4,3 +4,5 @@
 /behat.php
 /phpunit.xml
 /var/
+/tools/*/vendor/
+/tools/*/composer.lock

@@ -1,5 +1,10 @@
 # tuink
 
+[![CI](https://github.com/janalis/tuink/actions/workflows/ci.yml/badge.svg)](https://github.com/janalis/tuink/actions/workflows/ci.yml)
+[![Latest release](https://img.shields.io/github/v/release/janalis/tuink?sort=semver)](https://github.com/janalis/tuink/releases)
+[![Mutation testing: 100% MSI](https://img.shields.io/badge/MSI-100%25-brightgreen)](infection.json5.dist)
+[![MIT license](https://img.shields.io/github/license/janalis/tuink)](LICENSE)
+
 End-to-end tests for [Symfony Tui](https://github.com/symfony/tui) applications, written in Gherkin and run by [Behat](https://behat.org).
 
 ```gherkin
@@ -254,14 +259,14 @@ final class StatusContext implements Behat\Behat\Context\Context
 }
 ```
 
-Or implement `TuinkAwareContext` (or use `TuinkAwareTrait`):
+Or implement `TuinkAwareContextInterface` (or use `TuinkAwareTrait`):
 
 ```php
 use Behat\Step\Then;
-use Janalis\Tuink\Context\TuinkAwareContext;
+use Janalis\Tuink\Context\TuinkAwareContextInterface;
 use Janalis\Tuink\Context\TuinkAwareTrait;
 
-final class EditorContext implements TuinkAwareContext
+final class EditorContext implements TuinkAwareContextInterface
 {
     use TuinkAwareTrait;
 
@@ -288,13 +293,27 @@ final class EditorContext implements TuinkAwareContext
 ## Developing
 
 ```bash
-composer install
-composer test        # PHPUnit, then Behat on both drivers
-composer analyze
-composer cs
+make install
+make verify      # every gate CI runs
 ```
 
+| Command          | Gate                                                              |
+|------------------|-------------------------------------------------------------------|
+| `make fmt-check` | mago formatting (`make fmt` applies it)                           |
+| `make lint`      | mago lint, every finding fatal                                    |
+| `make analyze`   | mago static analysis, every finding fatal                         |
+| `make test`      | PHPUnit                                                           |
+| `make behat`     | Behat on both drivers                                             |
+| `make infection` | Mutation testing with pcov: every mutant must die (100% MSI)      |
+
 `example/` holds the demo app the self-tests drive.
+
+## Contributing
+
+Contributions are welcome: read [CONTRIBUTING.md](CONTRIBUTING.md). Report vulnerabilities as
+described in [SECURITY.md](SECURITY.md). Changes are recorded in [CHANGELOG.md](CHANGELOG.md),
+which follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
+[Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## License
 

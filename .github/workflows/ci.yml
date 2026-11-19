@@ -20,10 +20,8 @@ jobs:
           php-version: '8.5'
           coverage: none
           tools: composer
-      - run: composer validate --strict
       - run: composer update --no-interaction --no-progress
-      - run: vendor/bin/phpstan analyse --no-progress
-      - run: vendor/bin/php-cs-fixer fix --dry-run --diff
+      - run: make validate fmt-check lint analyze audit
 
   tests:
     runs-on: ${{ vars.CI_RUNNER || 'ubuntu-latest' }}
@@ -43,8 +41,27 @@ jobs:
           extensions: mbstring, pcntl, posix
           tools: composer
       - run: composer update --no-interaction --no-progress
-      - run: vendor/bin/phpunit
-      - name: Behat, in process
-        run: vendor/bin/behat --strict --no-colors
-      - name: Behat, in a pseudo-terminal
-        run: vendor/bin/behat --strict --no-colors --profile=process
+      - run: make test
+      - name: Behat, in process and in a pseudo-terminal
+        run: make behat
+
+  mutation:
+    runs-on: ${{ vars.CI_RUNNER || 'ubuntu-latest' }}
+    timeout-minutes: 45
+    name: mutation testing (100% MSI)
+    steps:
+      - uses: actions/checkout@v7
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.5'
+          coverage: pcov
+          ini-values: zend.assertions=1
+          extensions: mbstring, pcntl, posix
+          tools: composer
+      - run: composer update --no-interaction --no-progress
+      - run: make infection
+      - if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: infection-log
+          path: var/infection.log

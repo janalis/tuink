@@ -15,7 +15,7 @@ use Janalis\Tuink\Session;
 use Janalis\Tuink\Tuink;
 
 /**
- * Implements TuinkAwareContext.
+ * Implements TuinkAwareContextInterface.
  */
 trait TuinkAwareTrait
 {

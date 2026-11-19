@@ -44,7 +44,9 @@ final class TuinkExtension implements Extension
         return 'tuink';
     }
 
-    public function initialize(ExtensionManager $extensionManager): void {}
+    public function initialize(ExtensionManager $extensionManager): void
+    {
+    }
 
     public function configure(ArrayNodeDefinition $builder): void
     {
@@ -155,5 +157,7 @@ final class TuinkExtension implements Extension
         $container->setDefinition('tuink.session_listener', $listener);
     }
 
-    public function process(ContainerBuilder $container): void {}
+    public function process(ContainerBuilder $container): void
+    {
+    }
 }

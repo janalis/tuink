@@ -7,13 +7,16 @@ COVERAGE_PHP_FLAGS ?= -d pcov.enabled=1 -d pcov.directory=src
 INFECTION_THREADS ?= max
 
 .NOTPARALLEL:
-.PHONY: help install validate fmt fmt-check lint analyze test behat infection audit verify clean
+.PHONY: help install tools validate fmt fmt-check lint analyze test behat infection audit verify release-preview clean
 
 help: ## List developer commands
 	@awk 'BEGIN { FS = ":.*## " } /^[a-z-]+:.*## / { printf "  %-12s %s\n", $$1, $$2 }' $(MAKEFILE_LIST)
 
 install: ## Install dependencies
 	$(COMPOSER) install --no-interaction --prefer-dist
+
+tools: ## Install janalis/bumpversion apart from the project's dependencies
+	$(COMPOSER) install --no-interaction --prefer-dist --working-dir=tools/bumpversion
 
 validate: ## Validate composer.json
 	$(COMPOSER) validate --strict --no-check-lock
@@ -44,6 +47,9 @@ audit: ## Check dependencies for security advisories
 	$(COMPOSER) audit
 
 verify: validate fmt-check lint analyze test behat infection audit ## Every gate CI runs
+
+release-preview: tools ## Show what a minor release would change (needs a clean working tree)
+	tools/bumpversion/vendor/bin/bumpversion release:prepare minor --tag-prefix=v --dry-run
 
 clean: ## Remove generated reports and caches
 	rm -rf .phpunit.cache var

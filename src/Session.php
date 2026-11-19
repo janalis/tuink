@@ -12,7 +12,7 @@ declare(strict_types=1);
 namespace Janalis\Tuink;
 
 use Janalis\Tuink\Driver\DriverInterface;
-use Janalis\Tuink\Driver\WidgetTreeProvider;
+use Janalis\Tuink\Driver\WidgetTreeProviderInterface;
 use Janalis\Tuink\Exception\DriverException;
 use Janalis\Tuink\Exception\ExpectationException;
 use Janalis\Tuink\Exception\UnsupportedDriverException;
@@ -37,7 +37,8 @@ final class Session
         private readonly float $timeout = 2.0,
         private readonly float $quietPeriod = 0.05,
         private readonly ?string $snapshotDir = null,
-    ) {}
+    ) {
+    }
 
     public function getDriver(): DriverInterface
     {
@@ -595,7 +596,7 @@ final class Session
     public function find(string $selector): array
     {
         $driver = $this->driver;
-        if (!$driver instanceof WidgetTreeProvider) {
+        if (!$driver instanceof WidgetTreeProviderInterface) {
             throw new UnsupportedDriverException(\sprintf('The "%s" driver cannot show widgets, so CSS selectors do not work on it.', $driver->getName()));
         }
 
@@ -612,7 +613,7 @@ final class Session
         $this->ensureRunning();
         $element = $this->findOne($selector);
         $driver = $this->driver;
-        if (!$driver instanceof WidgetTreeProvider) {
+        if (!$driver instanceof WidgetTreeProviderInterface) {
             throw new UnsupportedDriverException(\sprintf('The "%s" driver cannot focus widgets.', $driver->getName()));
         }
         $driver->focusWidget($element->index);

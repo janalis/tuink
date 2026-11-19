@@ -1,0 +1,35 @@
+name: Bug report
+description: A step, a driver or the extension behaves wrongly.
+labels: [bug]
+body:
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Minimal reproduction
+      description: The scenario, the step definitions or configuration involved, and a small Tui application if needed. Remove credentials, private URLs and personal information.
+      render: gherkin
+    validations:
+      required: true
+  - type: textarea
+    id: behavior
+    attributes:
+      label: Expected and actual behavior
+      description: Include the failure message; it ends with the screen tuink saw.
+    validations:
+      required: true
+  - type: dropdown
+    id: driver
+    attributes:
+      label: Driver
+      options:
+        - in_process
+        - process
+        - both
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: PHP, operating system, terminal, and the tuink, symfony/tui and behat/behat versions
+    validations:
+      required: true

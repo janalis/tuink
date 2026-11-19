@@ -13,21 +13,22 @@ namespace Janalis\Tuink\Context\Initializer;
 
 use Behat\Behat\Context\Context;
 use Behat\Behat\Context\Initializer\ContextInitializer;
-use Janalis\Tuink\Context\TuinkAwareContext;
+use Janalis\Tuink\Context\TuinkAwareContextInterface;
 use Janalis\Tuink\Tuink;
 
 /**
- * Injects the Tuink manager into contexts that implement TuinkAwareContext.
+ * Injects the Tuink manager into contexts that implement TuinkAwareContextInterface.
  */
 final class TuinkAwareInitializer implements ContextInitializer
 {
     public function __construct(
         private readonly Tuink $tuink,
-    ) {}
+    ) {
+    }
 
     public function initializeContext(Context $context): void
     {
-        if ($context instanceof TuinkAwareContext) {
+        if ($context instanceof TuinkAwareContextInterface) {
             $context->setTuink($this->tuink);
         }
     }

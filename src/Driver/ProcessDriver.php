@@ -27,7 +27,7 @@ use Symfony\Component\Tui\Terminal\ScreenBuffer;
  * in raw mode, reads keys from the tty and paints with escape sequences, which
  * the driver folds into a ScreenBuffer. It needs PTY support (Linux, macOS).
  */
-final class ProcessDriver implements DriverInterface, WidgetTreeProvider
+final class ProcessDriver implements DriverInterface, WidgetTreeProviderInterface
 {
     private ?Process $process = null;
     private ?InputStream $input = null;

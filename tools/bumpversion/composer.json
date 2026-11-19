@@ -1,0 +1,9 @@
+{
+    "description": "janalis/bumpversion, installed apart from tuink's dependencies: it pins symfony/console 7.4, tuink tests against 8",
+    "require": {
+        "janalis/bumpversion": "^0.1.2"
+    },
+    "config": {
+        "sort-packages": true
+    }
+}

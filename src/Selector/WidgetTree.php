@@ -50,7 +50,8 @@ final class WidgetTree
     public function __construct(
         public readonly \DOMDocument $document,
         public readonly array $widgets = [],
-    ) {}
+    ) {
+    }
 
     public static function fromTui(Tui $tui): self
     {

@@ -31,7 +31,8 @@ final class WidgetQuery
      */
     public function __construct(
         private readonly \Closure $textOf,
-    ) {}
+    ) {
+    }
 
     /**
      * @return list<Element> The matching widgets, in tree order

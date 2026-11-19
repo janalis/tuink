@@ -31,7 +31,8 @@ final class ProbeServer
     private function __construct(
         private readonly string $directory,
         public readonly string $path,
-    ) {}
+    ) {
+    }
 
     public static function listen(): self
     {
