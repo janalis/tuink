@@ -10,6 +10,7 @@
 namespace Janalis\Tuink\Driver;
 
 use Janalis\Tuink\Exception\DriverException;
+use Janalis\Tuink\Selector\WidgetTree;
 use Revolt\EventLoop;
 use Symfony\Component\Tui\Terminal\ScreenBuffer;
 use Symfony\Component\Tui\Terminal\VirtualTerminal;
@@ -23,7 +24,7 @@ use Symfony\Component\Tui\Tui;
  * slices, so timers, intervals and async work progress as they would under
  * Tui::run(), and the Tui itself stays reachable for focus and widget checks.
  */
-final class InProcessDriver implements DriverInterface
+final class InProcessDriver implements DriverInterface, WidgetTreeProvider
 {
     /** @var \Closure(VirtualTerminal): mixed */
     private readonly \Closure $factory;
@@ -162,6 +163,18 @@ final class InProcessDriver implements DriverInterface
     public function getScreen(): ScreenBuffer
     {
         return $this->screen ?? throw new DriverException('The application is not started.');
+    }
+
+    public function getWidgetTree(): WidgetTree
+    {
+        return WidgetTree::fromTui($this->tui());
+    }
+
+    public function focusWidget(int $index): void
+    {
+        $tui = $this->tui();
+        $widget = WidgetTree::fromTui($tui)->widgets[$index] ?? throw new DriverException(\sprintf('No widget has the index %d.', $index));
+        $tui->setFocus($widget);
     }
 
     /**

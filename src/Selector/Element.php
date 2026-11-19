@@ -13,15 +13,26 @@ use Symfony\Component\Tui\Render\WidgetRect;
 use Symfony\Component\Tui\Widget\AbstractWidget;
 
 /**
- * A widget a selector matched, with where it is drawn and what it shows.
+ * A widget a selector matched: what it is, where it is drawn and what it shows.
  */
 final class Element
 {
+    /**
+     * @param list<string> $classes
+     */
     public function __construct(
-        public readonly AbstractWidget $widget,
+        public readonly int $index,
         public readonly string $name,
+        public readonly string $widgetClass,
+        public readonly ?string $id,
+        public readonly array $classes,
+        public readonly ?string $label,
+        public readonly ?string $value,
+        public readonly bool $focused,
         public readonly ?WidgetRect $rect,
         public readonly string $text,
+        /** The widget itself, when the application runs in this process */
+        public readonly ?AbstractWidget $widget = null,
     ) {
     }
 
@@ -30,7 +41,7 @@ final class Element
      */
     public function isVisible(): bool
     {
-        return null !== $this->rect && $this->rect->rows > 0 && $this->rect->columns > 0;
+        return null !== $this->rect;
     }
 
     /**
@@ -38,8 +49,6 @@ final class Element
      */
     public function describe(): string
     {
-        $id = $this->widget->getId();
-
-        return $this->name.(null === $id ? '' : '#'.$id).implode('', array_map(static fn (string $class): string => '.'.$class, $this->widget->getStyleClasses()));
+        return $this->name.(null === $this->id ? '' : '#'.$this->id).implode('', array_map(static fn (string $class): string => '.'.$class, $this->classes));
     }
 }

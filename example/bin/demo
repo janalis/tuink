@@ -9,10 +9,15 @@
  */
 
 use Janalis\Tuink\Example\DemoApp;
+use Janalis\Tuink\Probe\TuiProbe;
 
 require dirname(__DIR__, 2).'/vendor/autoload.php';
 
 $app = new DemoApp();
+// Lets tuink's process driver read the widgets; a no-op outside its tests
+if (class_exists(TuiProbe::class)) {
+    TuiProbe::install($app->tui);
+}
 $app->tui->run();
 
 exit($app->exitCode);

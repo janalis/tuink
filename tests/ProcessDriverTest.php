@@ -11,6 +11,8 @@ namespace Janalis\Tuink\Tests;
 
 use Janalis\Tuink\Driver\ProcessDriver;
 use Janalis\Tuink\Exception\DriverException;
+use Janalis\Tuink\Exception\UnsupportedDriverException;
+use Janalis\Tuink\Selector\Element;
 use Janalis\Tuink\Session;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Process\Process;
@@ -80,6 +82,58 @@ final class ProcessDriverTest extends TestCase
 
         $this->session->assertSee('xterm-256color hi 20 70');
         $this->assertTrue($driver->isRunning());
+    }
+
+    public function testSelectorsThroughTheProbe(): void
+    {
+        $session = $this->demo(60, 12);
+        $session->send('Ada<Enter>');
+
+        $session->assertSeeIn('#greeting', 'Hello, Ada!');
+        $this->assertSame(['select-list#color'], array_map(static fn (Element $e): string => $e->describe(), $session->find(':focus')));
+        $element = $session->findOne('#name');
+        $this->assertSame('Ada', $element->value);
+        $this->assertNull($element->widget, 'Widgets stay in the application.');
+
+        $session->focus('#name');
+        $session->assertElementCount('input:focus', 1);
+        $session->type('!');
+        $this->assertSame('Ada!', $session->findOne('#name')->value);
+    }
+
+    public function testAnApplicationWithoutTheProbe(): void
+    {
+        $driver = new ProcessDriver([\PHP_BINARY, 'example/bin/demo'], \dirname(__DIR__), ['TUINK_PROBE' => ''], probeTimeout: 0.3);
+        $this->session = new Session($driver, 60, 12, 2.0);
+        $this->session->start();
+
+        foreach ([0.25, 0.2] as $i => $bound) {
+            $start = microtime(true);
+            try {
+                $this->session->find('input');
+                $this->fail('An unsupported driver exception was expected.');
+            } catch (UnsupportedDriverException $e) {
+                $this->assertStringContainsString('did not connect to the tuink probe', $e->getMessage());
+            }
+            // The first lookup waits for the probe; once it is known missing, lookups fail at once
+            $elapsed = microtime(true) - $start;
+            0 === $i ? $this->assertGreaterThan($bound, $elapsed) : $this->assertLessThan($bound, $elapsed);
+        }
+    }
+
+    public function testTheProbeSocketIsRemoved(): void
+    {
+        $pattern = sys_get_temp_dir().'/tuink-*/probe.sock';
+        $before = glob($pattern) ?: [];
+        $session = $this->demo();
+        $session->find('input');
+        $mine = array_values(array_diff(glob($pattern) ?: [], $before));
+        $this->assertCount(1, $mine);
+
+        $session->stop();
+
+        $this->assertFileDoesNotExist($mine[0]);
+        $this->assertDirectoryDoesNotExist(\dirname($mine[0]));
     }
 
     public function testACommandThatDoesNotExist(): void

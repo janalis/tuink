@@ -38,6 +38,7 @@ final class TuinkExtensionTest extends TestCase
         $this->assertSame(['php', 'bin/app', '--flag'], $config['process']['command']);
         $this->assertNull($config['process']['cwd']);
         $this->assertSame([], $config['process']['env']);
+        $this->assertSame(2.0, $config['process']['probe_timeout']);
     }
 
     public function testADriverIsRequired(): void

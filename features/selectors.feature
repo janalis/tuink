@@ -1,8 +1,9 @@
-@in_process
 Feature: Finding widgets with CSS selectors
   Widgets are elements named after their class (InputWidget is "input",
   SelectListWidget is "select-list"), with their id, style classes, label
   and value as attributes, :focus and :visible, and the text they show.
+  In process the driver reads the widgets; as a process, the demo's entry
+  point installs TuiProbe, which shares them.
 
   Background:
     Given I start the app

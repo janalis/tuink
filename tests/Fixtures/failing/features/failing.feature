@@ -5,6 +5,6 @@ Feature: Failures show the screen
     Then I should see "Goodbye"
 
   @process
-  Scenario: Widget steps need the app in process
+  Scenario: Selectors on a process need the probe
     Given I start the app
     Then the widget "#name" should be focused

@@ -35,7 +35,7 @@ final class BehatTest extends TestCase
         $this->assertStringContainsString('The text "Goodbye" was not found on the screen.', $output);
         $this->assertStringContainsString('Screen (80x24, in_process driver, running):', $output);
         $this->assertMatchesRegularExpression('/\b1 \| Tuink demo\b/', $output);
-        $this->assertStringContainsString('This step needs the in_process driver, the scenario runs on "process"; tag it @in_process.', $output);
+        $this->assertStringContainsString('The application did not connect to the tuink probe. CSS selectors on the process driver need it to call Janalis\\Tuink\\Probe\\TuiProbe::install($tui) before run(); or tag the scenario @in_process.', $output);
         $this->assertStringContainsString('2 scenarios (2 failed)', $output);
     }
 

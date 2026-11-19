@@ -17,7 +17,7 @@ The same scenario runs on two drivers:
 
 | Driver       | Runs the app                                       | Good for                                              |
 |--------------|----------------------------------------------------|-------------------------------------------------------|
-| `in_process` | in the Behat process, on a `VirtualTerminal`       | speed, checking widgets and focus                     |
+| `in_process` | in the Behat process, on a `VirtualTerminal`       | speed, reaching into the app from your own steps      |
 | `process`    | as its own process, in a pseudo-terminal           | the real entry point: boot, raw mode, stdin, signals  |
 
 ## Install
@@ -60,6 +60,7 @@ return (new Config())
 | `process.command`   | —                        | Command, as a list or a string split on spaces                            |
 | `process.cwd`       | Behat base path          | Working directory                                                         |
 | `process.env`       | `{}`                     | Extra environment variables                                               |
+| `process.probe_timeout` | `2.0`                | Seconds to wait for the application's `TuiProbe`                         |
 
 Relative paths are resolved from the Behat base path.
 
@@ -101,14 +102,14 @@ Your entry point does the same with the real terminal and calls `run()`. The dri
 | `Then the app should be running`                              |                                                                 |
 | `Then the app should have exited [with code 2]`               | Exit codes need the `process` driver                            |
 | `Then print the screen`                                       | For debugging                                                   |
-| `Then I should see "text" in "#sidebar .title"`               | `in_process` only; see [CSS selectors](#css-selectors)          |
-| `Then I should not see "text" in "selector"`                  | `in_process` only                                               |
-| `Then I should [not] see an element matching "selector"`      | `in_process` only; drawn in the last frame                      |
-| `Then there should be 3 elements matching "selector"`         | `in_process` only; drawn or not                                 |
-| `Then the element "selector" should show:` + doc string       | `in_process` only; exactly one match                            |
-| `When I focus [the element] "selector"`                       | `in_process` only; exactly one match                            |
-| `Then the element "selector" should be focused`               | `in_process` only                                               |
-| `Then the element "selector" should have the value "text"`    | `in_process` only; exactly one match with `getValue()`          |
+| `Then I should see "text" in "#sidebar .title"`               | See [CSS selectors](#css-selectors)                             |
+| `Then I should not see "text" in "selector"`                  | CSS selector                                                    |
+| `Then I should [not] see an element matching "selector"`      | Drawn in the last frame                                         |
+| `Then there should be 3 elements matching "selector"`         | Drawn or not                                                    |
+| `Then the element "selector" should show:` + doc string       | Exactly one match                                               |
+| `When I focus [the element] "selector"`                       | Exactly one match                                               |
+| `Then the element "selector" should be focused`               | Any match                                                       |
+| `Then the element "selector" should have the value "text"`    | Exactly one match whose `getValue()` returns a string           |
 
 Every action waits until the app's output has been quiet for `quiet_period`. Every check retries until `timeout`, so a frame that comes late, after an HTTP call or a timer, does not fail the step. A failure prints the screen with its row numbers:
 
@@ -123,7 +124,7 @@ Screen (80x24, in_process driver, running):
 
 ### CSS selectors
 
-In process, widgets can be found with CSS selectors. tuink mirrors the widget tree into an XML document and queries it with [symfony/css-selector](https://symfony.com/doc/current/components/css_selector.html), so the whole selector grammar works: combinators, `:not()`, `:nth-child()`, attribute operators. Each widget is an element:
+Widgets can be found with CSS selectors. tuink mirrors the widget tree into an XML document and queries it with [symfony/css-selector](https://symfony.com/doc/current/components/css_selector.html), so the whole selector grammar works: combinators, `:not()`, `:nth-child()`, attribute operators. Each widget is an element:
 
 | CSS                        | Matches                                                                                  |
 |----------------------------|------------------------------------------------------------------------------------------|
@@ -153,7 +154,18 @@ Scenario: The status bar
     """
 ```
 
-Selectors need the application in the same process; on the `process` driver these steps fail and say to tag the scenario `@in_process`.
+In process, the driver reads the widgets itself. On the `process` driver, the application has to share them: install the probe in its entry point, before `run()`:
+
+```php
+use Janalis\Tuink\Probe\TuiProbe;
+
+if (class_exists(TuiProbe::class)) { // tuink is a dev dependency
+    TuiProbe::install($tui);
+}
+$tui->run();
+```
+
+The probe does nothing unless the process driver started the application. The driver then sets `TUINK_PROBE` to a Unix socket in a private temporary directory; the probe connects to it and answers the driver's requests for the widget tree, and to focus a widget, from the Revolt event loop. Element text still comes from the screen the driver decoded, so it is what a user would see. Without the probe, selector steps on the `process` driver wait `probe_timeout` once, then fail and say what to do.
 
 ### Keys
 

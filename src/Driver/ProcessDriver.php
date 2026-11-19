@@ -10,6 +10,10 @@
 namespace Janalis\Tuink\Driver;
 
 use Janalis\Tuink\Exception\DriverException;
+use Janalis\Tuink\Exception\UnsupportedDriverException;
+use Janalis\Tuink\Probe\ProbeServer;
+use Janalis\Tuink\Probe\TuiProbe;
+use Janalis\Tuink\Selector\WidgetTree;
 use Symfony\Component\Process\InputStream;
 use Symfony\Component\Process\Process;
 use Symfony\Component\Tui\Terminal\ScreenBuffer;
@@ -21,22 +25,26 @@ use Symfony\Component\Tui\Terminal\ScreenBuffer;
  * in raw mode, reads keys from the tty and paints with escape sequences, which
  * the driver folds into a ScreenBuffer. It needs PTY support (Linux, macOS).
  */
-final class ProcessDriver implements DriverInterface
+final class ProcessDriver implements DriverInterface, WidgetTreeProvider
 {
     private ?Process $process = null;
     private ?InputStream $input = null;
     private ?ScreenBuffer $screen = null;
     private OutputBuffer $output;
     private ?string $ttyFile = null;
+    private ?ProbeServer $probe = null;
+    private bool $probeMissing = false;
 
     /**
-     * @param list<string>          $command The command line, as an argument list
-     * @param array<string, string> $env     Extra environment variables
+     * @param list<string>          $command      The command line, as an argument list
+     * @param array<string, string> $env          Extra environment variables
+     * @param float                 $probeTimeout Seconds to wait for the application's TuiProbe to connect and answer
      */
     public function __construct(
         private readonly array $command,
         private readonly ?string $cwd = null,
         private readonly array $env = [],
+        private readonly float $probeTimeout = 2.0,
     ) {
         if ([] === $command) {
             throw new DriverException('The process driver needs a command.');
@@ -61,6 +69,9 @@ final class ProcessDriver implements DriverInterface
         // The size is set on the pty before exec, so the application reads it from stty like in a real terminal;
         // the pty is not the child's controlling terminal, so ps cannot name it: the shell writes it down for resize()
         $this->ttyFile = tempnam(sys_get_temp_dir(), 'tuink-tty-') ?: null;
+        // The application connects back if its entry point installs TuiProbe
+        $this->probe = ProbeServer::listen();
+        $this->probeMissing = false;
         $process = new Process(
             ['/bin/sh', '-c', 'stty cols "$TUINK_COLUMNS" rows "$TUINK_ROWS" 2>/dev/null; [ -n "$TUINK_TTY_FILE" ] && tty > "$TUINK_TTY_FILE"; exec "$@"', 'tuink', ...$this->command],
             $this->cwd,
@@ -71,6 +82,7 @@ final class ProcessDriver implements DriverInterface
                 'TUINK_COLUMNS' => (string) $columns,
                 'TUINK_ROWS' => (string) $rows,
                 'TUINK_TTY_FILE' => $this->ttyFile ?? '',
+                TuiProbe::ENV => $this->probe->path,
                 ...$this->env,
             ],
         );
@@ -84,6 +96,8 @@ final class ProcessDriver implements DriverInterface
         try {
             $process->start();
         } catch (\Throwable $e) {
+            $this->probe->close();
+            $this->probe = null;
             throw new DriverException(\sprintf('Cannot start "%s": %s', implode(' ', $this->command), $e->getMessage()), 0, $e);
         }
         $this->process = $process;
@@ -101,6 +115,8 @@ final class ProcessDriver implements DriverInterface
             @unlink($this->ttyFile);
             $this->ttyFile = null;
         }
+        $this->probe?->close();
+        $this->probe = null;
     }
 
     public function isStarted(): bool
@@ -191,12 +207,50 @@ final class ProcessDriver implements DriverInterface
         return $this->screen ?? throw new DriverException('The application is not started.');
     }
 
+    public function getWidgetTree(): WidgetTree
+    {
+        $xml = $this->probeRequest(['op' => 'tree'])['xml'] ?? null;
+        if (!\is_string($xml)) {
+            throw new DriverException('The tuink probe sent no widget tree.');
+        }
+
+        return WidgetTree::fromXml($xml);
+    }
+
+    public function focusWidget(int $index): void
+    {
+        $this->probeRequest(['op' => 'focus', 'index' => $index]);
+    }
+
     /**
      * The output the application wrote to its terminal so far, for debugging.
      */
     public function getOutput(): string
     {
         return $this->process()->getOutput();
+    }
+
+    /**
+     * @param array<string, mixed> $request
+     *
+     * @return array<string, mixed>
+     */
+    private function probeRequest(array $request): array
+    {
+        $probe = $this->probe ?? throw new DriverException('The application is not started.');
+        if ($this->probeMissing) {
+            throw new UnsupportedDriverException(\sprintf('The application did not connect to the tuink probe. CSS selectors on the process driver need it to call %s::install($tui) before run(); or tag the scenario @in_process.', TuiProbe::class));
+        }
+
+        try {
+            return $probe->request($request, $this->probeTimeout, $this->isRunning(...), function (): void {
+                $this->pump(0.0);
+            });
+        } catch (UnsupportedDriverException $e) {
+            // Not connected by now, it never will: later steps fail at once
+            $this->probeMissing = true;
+            throw $e;
+        }
     }
 
     private function process(): Process

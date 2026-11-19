@@ -20,5 +20,6 @@ return (new Config())
         ->withExtension(new Extension(TuinkExtension::class, [
             'timeout' => 0.2,
             'in_process' => ['factory' => '../../../example/factory.php'],
-            'process' => ['command' => 'php ../../../example/bin/demo'],
+            // The demo installs TuiProbe; an empty TUINK_PROBE stands for an application that does not
+            'process' => ['command' => 'php ../../../example/bin/demo', 'env' => ['TUINK_PROBE' => '']],
         ])));

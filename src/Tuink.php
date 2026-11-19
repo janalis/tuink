@@ -57,7 +57,7 @@ final class Tuink
      *     quiet_period: ?float,
      *     snapshots: ?string,
      *     in_process?: array{factory: string},
-     *     process?: array{command: list<string>, cwd: ?string, env: array<string, string>},
+     *     process?: array{command: list<string>, cwd: ?string, env: array<string, string>, probe_timeout?: float},
      * } $config
      */
     public static function fromConfig(array $config, string $basePath): self
@@ -80,7 +80,7 @@ final class Tuink
         if (isset($config['process'])) {
             $process = $config['process'];
             $cwd = $resolve($process['cwd'] ?? '.');
-            $drivers['process'] = static fn (): DriverInterface => new ProcessDriver($process['command'], $cwd, $process['env']);
+            $drivers['process'] = static fn (): DriverInterface => new ProcessDriver($process['command'], $cwd, $process['env'], $process['probe_timeout'] ?? 2.0);
             $quiet['process'] = $config['quiet_period'] ?? self::PROCESS_QUIET_PERIOD;
         }
 

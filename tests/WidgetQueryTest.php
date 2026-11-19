@@ -10,12 +10,10 @@
 namespace Janalis\Tuink\Tests;
 
 use Janalis\Tuink\Driver\InProcessDriver;
-use Janalis\Tuink\Driver\ProcessDriver;
 use Janalis\Tuink\Example\DemoApp;
 use Janalis\Tuink\Exception\ExpectationException;
-use Janalis\Tuink\Exception\UnsupportedDriverException;
 use Janalis\Tuink\Selector\Element;
-use Janalis\Tuink\Selector\WidgetQuery;
+use Janalis\Tuink\Selector\WidgetTree;
 use Janalis\Tuink\Session;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
@@ -51,7 +49,7 @@ final class WidgetQueryTest extends TestCase
     #[DataProvider('names')]
     public function testElementName(string $class, string $name): void
     {
-        $this->assertSame($name, WidgetQuery::elementName($class));
+        $this->assertSame($name, WidgetTree::elementName($class));
     }
 
     /**
@@ -118,13 +116,26 @@ final class WidgetQueryTest extends TestCase
         $this->demo()->find('input:hover');
     }
 
-    public function testTheProcessDriverHasNoWidgets(): void
+    public function testTheTreeSurvivesXml(): void
     {
-        $session = new Session(new ProcessDriver(['true']));
+        $terminal = new VirtualTerminal(40, 12);
+        $tui = (new DemoApp($terminal))->tui;
+        $tui->start();
+        $tui->processRender();
 
-        $this->expectException(UnsupportedDriverException::class);
-        $this->expectExceptionMessage('CSS selectors need the in_process driver');
-        $session->find('input');
+        $tree = WidgetTree::fromTui($tui);
+        $copy = WidgetTree::fromXml($tree->toXml());
+        $tui->stop();
+
+        $this->assertSame($tree->toXml(), $copy->toXml());
+        $this->assertCount(\count($tree->widgets), $copy->document->getElementsByTagName('*'));
+        $this->assertSame([], $copy->widgets, 'Widgets do not travel.');
+    }
+
+    public function testInvalidXml(): void
+    {
+        $this->expectException(\UnexpectedValueException::class);
+        WidgetTree::fromXml('<container');
     }
 
     /**
@@ -175,7 +186,7 @@ final class WidgetQueryTest extends TestCase
         $session->assertElementNotVisible('.message');
         $session->assertElementShows('text.title', 'Tuink demo');
 
-        $this->assertSame('#name', '#'.$session->findOne('input')->widget->getId());
+        $this->assertSame('name', $session->findOne('input')->widget?->getId(), 'In process, elements carry their widget.');
     }
 
     private function demo(float $timeout = 1.0): Session

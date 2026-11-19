@@ -17,15 +17,13 @@ use Janalis\Tuink\Driver\InProcessDriver;
 use Janalis\Tuink\Exception\ExpectationException;
 use Janalis\Tuink\Exception\UnsupportedDriverException;
 use Janalis\Tuink\Selector\Element;
-use Janalis\Tuink\Session;
 use Symfony\Component\Tui\Tui;
-use Symfony\Component\Tui\Widget\AbstractWidget;
 
 /**
  * Steps to drive a Tui application and check its screen.
  *
- * Every step works on both drivers, except the widget steps, which need the
- * application in the same process (@in_process).
+ * Every step works on both drivers. On the process driver, the steps with CSS
+ * selectors need the application to install TuiProbe; see the README.
  */
 class TuiContext implements TuinkAwareContext
 {
@@ -182,19 +180,16 @@ class TuiContext implements TuinkAwareContext
     #[When('/^I focus (?:the (?:widget|element) )?"([^"]+)"$/')]
     public function focus(string $selector): void
     {
-        $session = $this->getSession();
-        $this->getTui()->setFocus($session->findOne($selector)->widget);
-        $session->settle();
+        $this->getSession()->focus($selector);
     }
 
     #[Then('/^the (?:widget|element) "([^"]+)" should be focused$/')]
     public function assertFocused(string $selector): void
     {
         $session = $this->getSession();
-        $tui = $this->getTui();
         $session->waitUntil(
-            static fn (): bool => [] !== array_filter($session->find($selector), static fn (Element $e): bool => $e->widget === $tui->getFocus()),
-            static fn (): string => \sprintf('No element matching "%s" has the focus; %s has it.', $selector, self::describe($session, $tui->getFocus())),
+            static fn (): bool => [] !== array_filter($session->find($selector), static fn (Element $e): bool => $e->focused),
+            static fn (): string => \sprintf('No element matching "%s" has the focus; %s has it.', $selector, implode(', ', array_map(static fn (Element $e): string => $e->describe(), $session->find(':focus'))) ?: 'nothing'),
         );
     }
 
@@ -202,13 +197,13 @@ class TuiContext implements TuinkAwareContext
     public function assertValue(string $selector, string $value): void
     {
         $session = $this->getSession();
-        $widget = $session->findOne($selector)->widget;
-        if (!method_exists($widget, 'getValue')) {
-            throw new \LogicException(\sprintf('The element "%s" (%s) has no value.', $selector, $widget::class));
+        $element = $session->findOne($selector);
+        if (null === $element->value) {
+            throw new \LogicException(\sprintf('The element "%s" (%s) has no value.', $selector, $element->widgetClass));
         }
         $session->waitUntil(
-            static fn (): bool => $widget->getValue() === $value,
-            static fn (): string => \sprintf('The element "%s" has the value "%s", not "%s".', $selector, (string) $widget->getValue(), $value),
+            static fn (): bool => $session->findOne($selector)->value === $value,
+            static fn (): string => \sprintf('The element "%s" has the value "%s", not "%s".', $selector, $session->findOne($selector)->value ?? '', $value),
         );
     }
 
@@ -259,19 +254,5 @@ class TuiContext implements TuinkAwareContext
         }
 
         return $driver->getTui();
-    }
-
-    private static function describe(Session $session, ?AbstractWidget $widget): string
-    {
-        if (null === $widget) {
-            return 'nothing';
-        }
-        foreach ($session->find('*') as $element) {
-            if ($element->widget === $widget) {
-                return $element->describe();
-            }
-        }
-
-        return $widget::class;
     }
 }

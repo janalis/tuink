@@ -1,6 +1,4 @@
-@in_process
-Feature: Looking inside the application
-  Widget steps read the Tui itself, so they need it in the same process.
+Feature: Focus and values
 
   Scenario: Focus moves on submit
     Given I start the app

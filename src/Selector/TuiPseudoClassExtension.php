@@ -19,14 +19,11 @@ use Symfony\Component\CssSelector\XPath\XPathExpr;
  */
 final class TuiPseudoClassExtension extends AbstractExtension
 {
-    public const FOCUS_ATTRIBUTE = 'tuink-focus';
-    public const VISIBLE_ATTRIBUTE = 'tuink-visible';
-
     public function getPseudoClassTranslators(): array
     {
         return [
-            'focus' => static fn (XPathExpr $xpath): XPathExpr => $xpath->addCondition('@'.self::FOCUS_ATTRIBUTE),
-            'visible' => static fn (XPathExpr $xpath): XPathExpr => $xpath->addCondition('@'.self::VISIBLE_ATTRIBUTE),
+            'focus' => static fn (XPathExpr $xpath): XPathExpr => $xpath->addCondition('@'.WidgetTree::FOCUS),
+            'visible' => static fn (XPathExpr $xpath): XPathExpr => $xpath->addCondition('@'.WidgetTree::VISIBLE),
         ];
     }
 

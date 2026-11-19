@@ -10,7 +10,7 @@
 namespace Janalis\Tuink;
 
 use Janalis\Tuink\Driver\DriverInterface;
-use Janalis\Tuink\Driver\InProcessDriver;
+use Janalis\Tuink\Driver\WidgetTreeProvider;
 use Janalis\Tuink\Exception\DriverException;
 use Janalis\Tuink\Exception\ExpectationException;
 use Janalis\Tuink\Exception\UnsupportedDriverException;
@@ -294,25 +294,38 @@ final class Session
     }
 
     /**
-     * The widgets matching a CSS selector, in tree order; see WidgetQuery for what selectors see.
+     * The widgets matching a CSS selector, in tree order; see WidgetTree for what selectors see.
      *
-     * Widgets live in the application, so this needs the in_process driver.
+     * The in_process driver reads the widgets directly; the process driver asks
+     * the application, whose entry point must install TuiProbe.
      *
      * @return list<Element>
      */
     public function find(string $selector): array
     {
         $driver = $this->driver;
-        if (!$driver instanceof InProcessDriver) {
-            throw new UnsupportedDriverException(\sprintf('CSS selectors need the in_process driver, the session runs on "%s"; tag the scenario @in_process.', $driver->getName()));
+        if (!$driver instanceof WidgetTreeProvider) {
+            throw new UnsupportedDriverException(\sprintf('The "%s" driver cannot show widgets, so CSS selectors do not work on it.', $driver->getName()));
         }
 
-        $query = new WidgetQuery(
-            $driver->getTui(),
-            fn (WidgetRect $rect): string => $this->getRegion($rect->row + 1, $rect->col + 1, $rect->columns, $rect->rows),
-        );
+        $query = new WidgetQuery(fn (WidgetRect $rect): string => $this->getRegion($rect->row + 1, $rect->col + 1, $rect->columns, $rect->rows));
 
-        return $query->select($selector);
+        return $query->select($driver->getWidgetTree(), $selector);
+    }
+
+    /**
+     * Gives the focus to the one widget matching the selector.
+     */
+    public function focus(string $selector): void
+    {
+        $this->ensureRunning();
+        $element = $this->findOne($selector);
+        $driver = $this->driver;
+        if (!$driver instanceof WidgetTreeProvider) {
+            throw new UnsupportedDriverException(\sprintf('The "%s" driver cannot focus widgets.', $driver->getName()));
+        }
+        $driver->focusWidget($element->index);
+        $this->settle();
     }
 
     /**
