@@ -8,7 +8,7 @@
  */
 
 $finder = (new PhpCsFixer\Finder())
-    ->in([__DIR__.'/src', __DIR__.'/tests', __DIR__.'/example'])
+    ->in([__DIR__.'/src', __DIR__.'/tests', __DIR__.'/example', __DIR__.'/features/bootstrap'])
     ->append([__FILE__, __DIR__.'/behat.dist.php', __DIR__.'/example/bin/demo']);
 
 return (new PhpCsFixer\Config())

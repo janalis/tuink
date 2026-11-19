@@ -4,3 +4,5 @@ parameters:
         - src
         - example
         - tests
+        - features/bootstrap
+        - behat.dist.php
