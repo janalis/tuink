@@ -92,14 +92,16 @@ Your entry point does the same with the real terminal and calls `run()`. The dri
 | `When I wait 1.5 seconds`                                     | Lets timers run                                                 |
 | `When I stop the app`                                         |                                                                 |
 | `Then I should see "text"` / `should not see`                 |                                                                 |
+| `Then I should eventually see "text"`                         | Same as `should see`, which already waits; reads better         |
 | `Then I should see text matching "/\d+ files/"`               |                                                                 |
 | `Then line 3 should contain "text"` / `line 3 should be "…"`  | Lines count from 1; trailing spaces ignored                     |
-| `Then the screen should be:` + doc string                     | Trailing spaces and blank lines ignored                         |
-| `Then the screen should match the snapshot "name"`            | Written on first run; see below                                 |
+| `Then the screen should be:` / `should match:` + doc string   | Trailing spaces and blank lines ignored                         |
+| `Then the region at line 5, column 3 should be:` + doc string | A rectangle as wide and tall as the doc string, by display cell |
+| `Then the screen should match [the] snapshot "name"`          | Written on first run; see below                                 |
 | `Then the app should be running`                              |                                                                 |
 | `Then the app should have exited [with code 2]`               | Exit codes need the `process` driver                            |
 | `Then print the screen`                                       | For debugging                                                   |
-| `When I focus the widget "id"`                                | `in_process` only                                               |
+| `When I focus [the widget] "id"`                              | `in_process` only                                               |
 | `Then the widget "id" should be focused`                      | `in_process` only                                               |
 | `Then the widget "id" should have the value "text"`           | `in_process` only, widgets with `getValue()`                    |
 
@@ -141,7 +143,24 @@ vendor/bin/behat --profile=process
 
 ## Your own steps
 
-Implement `TuinkAwareContext` (or use `TuinkAwareTrait`) to get the session:
+Ask for the `Tuink` manager in the constructor:
+
+```php
+use Janalis\Tuink\Tuink;
+
+final class StatusContext implements Behat\Behat\Context\Context
+{
+    public function __construct(private readonly Tuink $tuink) {}
+
+    #[Behat\Step\Then('the status line should say :text')]
+    public function statusLine(string $text): void
+    {
+        $this->tuink->getSession()->assertLineContains(2, $text);
+    }
+}
+```
+
+Or implement `TuinkAwareContext` (or use `TuinkAwareTrait`):
 
 ```php
 use Behat\Step\Then;
@@ -164,7 +183,7 @@ final class EditorContext implements TuinkAwareContext
 }
 ```
 
-`Session` also has `type()`, `press()`, `send()`, `paste()`, `resize()`, `settle()`, `getScreenText()`, `getLines()`, `getLine()`, `dump()` and the `assert*()` methods behind the steps. On the `in_process` driver, `$session->getDriver()->getTui()` returns the application's `Tui`.
+`Session` also has `type()`, `press()`, `send()`, `paste()`, `resize()`, `settle()`, `getScreenText()`, `getLines()`, `getLine()`, `getRegion()`, `snapshot()`, `dump()` and the `assert*()` methods behind the steps. On the `in_process` driver, `$session->getDriver()->getTui()` returns the application's `Tui`.
 
 ## Gotchas
 

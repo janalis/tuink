@@ -13,6 +13,7 @@ use Behat\Behat\Context\ServiceContainer\ContextExtension;
 use Behat\Testwork\EventDispatcher\ServiceContainer\EventDispatcherExtension;
 use Behat\Testwork\ServiceContainer\Extension;
 use Behat\Testwork\ServiceContainer\ExtensionManager;
+use Janalis\Tuink\Context\Argument\TuinkArgumentResolver;
 use Janalis\Tuink\Context\Initializer\TuinkAwareInitializer;
 use Janalis\Tuink\Listener\SessionListener;
 use Janalis\Tuink\Tuink;
@@ -126,6 +127,10 @@ final class TuinkExtension implements Extension
         $initializer = new Definition(TuinkAwareInitializer::class, [new Reference(self::MANAGER_ID)]);
         $initializer->addTag(ContextExtension::INITIALIZER_TAG);
         $container->setDefinition('tuink.context_initializer', $initializer);
+
+        $resolver = new Definition(TuinkArgumentResolver::class, [new Reference(self::MANAGER_ID)]);
+        $resolver->addTag(ContextExtension::ARGUMENT_RESOLVER_TAG);
+        $container->setDefinition('tuink.argument_resolver', $resolver);
 
         $listener = new Definition(SessionListener::class, [new Reference(self::MANAGER_ID)]);
         $listener->addTag(EventDispatcherExtension::SUBSCRIBER_TAG);

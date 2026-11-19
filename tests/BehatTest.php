@@ -39,6 +39,22 @@ final class BehatTest extends TestCase
         $this->assertStringContainsString('2 scenarios (2 failed)', $output);
     }
 
+    /**
+     * The self-test features must use every step TuiContext defines.
+     */
+    #[RequiresFunction('proc_open')]
+    public function testTheFeaturesUseEveryStep(): void
+    {
+        $root = \dirname(__DIR__);
+        $process = new Process([(new PhpExecutableFinder())->find(false) ?: 'php', $root.'/vendor/bin/behat', '--no-colors', '--dry-run', '--print-unused-definitions', '--format=progress'], $root);
+        $process->setTimeout(60);
+        $process->run();
+        $output = $process->getOutput().$process->getErrorOutput();
+
+        $this->assertSame(0, $process->getExitCode(), $output);
+        $this->assertStringContainsString('No unused definitions', $output);
+    }
+
     #[RequiresFunction('proc_open')]
     public function testATagForAnUnconfiguredDriverFails(): void
     {

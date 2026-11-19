@@ -100,6 +100,13 @@ class TuiContext implements TuinkAwareContext
         $this->getSession()->assertSee($text);
     }
 
+    #[Then('I should eventually see :text')]
+    public function assertEventuallySee(string $text): void
+    {
+        // Every check waits up to the timeout; this wording says so in the scenario
+        $this->getSession()->assertSee($text);
+    }
+
     #[Then('I should not see :text')]
     public function assertNotSee(string $text): void
     {
@@ -125,12 +132,13 @@ class TuiContext implements TuinkAwareContext
     }
 
     #[Then('the screen should be:')]
+    #[Then('the screen should match:')]
     public function assertScreenEquals(PyStringNode $screen): void
     {
         $this->getSession()->assertScreenEquals($screen->getRaw());
     }
 
-    #[Then('the screen should match the snapshot :name')]
+    #[Then('/^the screen should match (?:the )?snapshot "([^"]+)"$/')]
     public function assertMatchesSnapshot(string $name): void
     {
         $this->getSession()->assertMatchesSnapshot($name);
@@ -158,13 +166,19 @@ class TuiContext implements TuinkAwareContext
         $this->getSession()->assertExited($code);
     }
 
+    #[Then('/^the region at line (\d+), column (\d+) should be:$/')]
+    public function assertRegionEquals(int $line, int $column, PyStringNode $region): void
+    {
+        $this->getSession()->assertRegionEquals($line, $column, $region->getRaw());
+    }
+
     #[Then('print the screen')]
     public function printScreen(): void
     {
         echo $this->getSession()->dump(), "\n";
     }
 
-    #[When('I focus the widget :id')]
+    #[When('/^I focus (?:the widget )?"([^"]+)"$/')]
     public function focusWidget(string $id): void
     {
         $tui = $this->getTui();

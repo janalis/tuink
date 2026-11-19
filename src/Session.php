@@ -13,6 +13,7 @@ use Janalis\Tuink\Driver\DriverInterface;
 use Janalis\Tuink\Exception\DriverException;
 use Janalis\Tuink\Exception\ExpectationException;
 use Janalis\Tuink\Exception\UnsupportedDriverException;
+use Symfony\Component\String\UnicodeString;
 
 /**
  * Drives one application run and asserts on what it shows.
@@ -248,6 +249,55 @@ final class Session
     }
 
     /**
+     * Compares a rectangle of the screen whose top-left cell is at $line, $column (both from 1).
+     *
+     * The rectangle is as tall as $expected has lines and as wide as its widest
+     * line; trailing spaces are ignored on both sides.
+     */
+    public function assertRegionEquals(int $line, int $column, string $expected): void
+    {
+        if ($line < 1 || $column < 1) {
+            throw new \InvalidArgumentException(\sprintf('A region starts at line 1, column 1 or further, not at line %d, column %d.', $line, $column));
+        }
+
+        $expected = self::normalize($expected);
+        $rows = explode("\n", $expected);
+        $width = max(array_map(static fn (string $row): int => (new UnicodeString($row))->width(false), $rows));
+
+        $this->waitUntil(
+            fn (): bool => $this->getRegion($line, $column, $width, \count($rows)) === $expected,
+            fn (): string => \sprintf("The region at line %d, column %d is not:\n%s\n\nIt is:\n%s", $line, $column, self::number($expected), self::number($this->getRegion($line, $column, $width, \count($rows)))),
+        );
+    }
+
+    /**
+     * The text of a rectangle of the screen, by display columns, trailing spaces trimmed.
+     */
+    public function getRegion(int $line, int $column, int $width, int $height): string
+    {
+        $cells = $this->driver->getScreen()->getCells();
+        $rows = [];
+        for ($row = $line - 1; $row < $line - 1 + $height; ++$row) {
+            $text = '';
+            for ($col = $column - 1; $col < $column - 1 + $width; ++$col) {
+                // A wide character fills its first cell and leaves the next one empty
+                $text .= $cells[$row][$col]['char'] ?? ' ';
+            }
+            $rows[] = rtrim($text);
+        }
+
+        return self::normalize(implode("\n", $rows));
+    }
+
+    /**
+     * The screen as a snapshot stores it: no trailing spaces, no trailing blank lines.
+     */
+    public function snapshot(): string
+    {
+        return self::normalize($this->getScreenText());
+    }
+
+    /**
      * Compares the screen with a stored snapshot, writing it when missing or when TUINK_UPDATE_SNAPSHOTS is set.
      *
      * A missing snapshot fails instead when the CI environment variable is set.
@@ -272,7 +322,7 @@ final class Session
             if (!is_dir(\dirname($path)) && !mkdir(\dirname($path), 0o777, true) && !is_dir(\dirname($path))) {
                 throw new \RuntimeException(\sprintf('Cannot create the snapshot directory "%s".', \dirname($path)));
             }
-            file_put_contents($path, self::normalize($this->getScreenText())."\n");
+            file_put_contents($path, $this->snapshot()."\n");
 
             return;
         }

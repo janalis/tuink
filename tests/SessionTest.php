@@ -127,6 +127,43 @@ final class SessionTest extends TestCase
         $session->assertScreenEquals("one\ntwo");
     }
 
+    public function testRegion(): void
+    {
+        $session = $this->session = new Session(new InProcessDriver(static function (VirtualTerminal $terminal): Tui {
+            $tui = new Tui(terminal: $terminal);
+            $tui->add(new TextWidget("ab 世界 cd\nefgh   \nwide 😀!"));
+
+            return $tui;
+        }), 20, 5, 0.1);
+        $session->start();
+
+        $session->assertRegionEquals(1, 4, "世界\nh");
+        $this->assertSame('界 cd', $session->getRegion(1, 6, 5, 1), 'Columns count display cells, not characters.');
+        $this->assertSame('😀!', $session->getRegion(3, 6, 3, 2), 'Blank rows at the bottom are trimmed.');
+        $session->assertRegionEquals(2, 1, 'efgh   ');
+
+        try {
+            $session->assertRegionEquals(1, 1, 'ab 界');
+            $this->fail('An expectation exception was expected.');
+        } catch (ExpectationException $e) {
+            $this->assertStringContainsString("The region at line 1, column 1 is not:\n1 | ab 界\n\nIt is:\n1 | ab 世", $e->getMessage());
+        }
+    }
+
+    public function testRegionMustStartOnTheScreen(): void
+    {
+        $this->expectException(\InvalidArgumentException::class);
+        $this->demo(timeout: 0.1)->assertRegionEquals(0, 1, 'x');
+    }
+
+    public function testSnapshotIsTheNormalizedScreen(): void
+    {
+        $session = $this->demo(timeout: 0.1);
+
+        $this->assertSame($session->getScreenText(), $session->snapshot());
+        $this->assertStringStartsWith("Tuink demo\n", $session->snapshot());
+    }
+
     public function testSnapshotIsWrittenThenCompared(): void
     {
         $session = $this->demo(snapshots: true, timeout: 0.1);

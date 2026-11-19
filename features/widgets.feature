@@ -12,6 +12,8 @@ Feature: Looking inside the application
 
   Scenario: Focusing a widget
     Given I start the app
+    When I focus "name"
+    Then the widget "name" should be focused
     When I focus the widget "color"
     And I press "Down"
     And I press "Enter"

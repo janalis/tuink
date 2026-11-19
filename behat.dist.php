@@ -21,7 +21,7 @@ $tuink = [
 
 return (new Config())
     ->withProfile((new Profile('default'))
-        ->withSuite((new Suite('default'))->withPaths('%paths.base%/features')->withContexts(TuiContext::class))
+        ->withSuite((new Suite('default'))->withPaths('%paths.base%/features')->withContexts(TuiContext::class, InjectedContext::class))
         ->withExtension(new Extension(TuinkExtension::class, $tuink)))
     ->withProfile((new Profile('process'))
         ->withExtension(new Extension(TuinkExtension::class, ['default_driver' => 'process'] + $tuink)));

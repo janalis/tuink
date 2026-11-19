@@ -20,6 +20,13 @@ Feature: Filling the demo form
     And I press "Enter"
     Then I should see "Hello, Linus!"
 
+  Scenario: Pasting a block
+    When I paste:
+      """
+      Margaret
+      """
+    Then line 4 should be "Name: Margaret"
+
   Scenario: Editing with keys
     When I type "Adda"
     And I press "Left"
