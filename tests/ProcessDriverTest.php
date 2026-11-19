@@ -148,6 +148,8 @@ final class ProcessDriverTest extends TestCase
         $session->assertBell(1);
         $session->send('Ada<Enter>');
         $session->assertTitle('Tuink demo: Ada');
+        $this->assertSame(1, $session->getDriver()->getObserver()->getBellCount());
+        $this->assertSame('Tuink demo: Ada', $session->getDriver()->getObserver()->getTitle());
     }
 
     public function testTheTitle(): void
