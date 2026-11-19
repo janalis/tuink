@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 /*
  * This file is part of the tuink package.
  *
@@ -68,8 +70,8 @@ final class OutputBufferTest extends TestCase
     public function testAFrameSplitAnywhereDrawsTheSameScreen(): void
     {
         $terminal = new VirtualTerminal(40, 12);
-        $tui = (new DemoApp($terminal))->tui;
-        $tui->add((new TextWidget('Styled ─ é 😀'))->setStyle(new Style(color: Color::hex('#336699'), bold: true)));
+        $tui = new DemoApp($terminal)->tui;
+        $tui->add(new TextWidget('Styled ─ é 😀')->setStyle(new Style(color: Color::hex('#336699'), bold: true)));
         $tui->start();
         $tui->processRender();
         $frame = $terminal->consumeOutput();
@@ -82,8 +84,8 @@ final class OutputBufferTest extends TestCase
         for ($cut = 1, $length = \strlen($frame); $cut < $length; ++$cut) {
             $buffer = new OutputBuffer();
             $split = new ScreenBuffer(40, 12);
-            $split->write($buffer->feed(substr($frame, 0, $cut)));
-            $split->write($buffer->feed(substr($frame, $cut)));
+            $split->write($buffer->feed(\substr($frame, offset: 0, length: $cut)));
+            $split->write($buffer->feed(\substr($frame, $cut)));
             $split->write($buffer->flush());
 
             $this->assertSame($whole->getStyledScreen(), $split->getStyledScreen(), \sprintf('Cut at byte %d.', $cut));

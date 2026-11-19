@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 /*
  * This file is part of the tuink package.
  *
@@ -12,6 +14,4 @@ namespace Janalis\Tuink\Exception;
 /**
  * Thrown when a step needs a capability the current driver does not have.
  */
-final class UnsupportedDriverException extends \LogicException
-{
-}
+final class UnsupportedDriverException extends \LogicException {}

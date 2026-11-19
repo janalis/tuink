@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 /*
  * This file is part of the tuink package.
  *
@@ -40,8 +42,8 @@ final class Tuink
         private readonly array $quietPeriods = [],
         private readonly ?string $snapshotDir = null,
     ) {
-        if (!isset($drivers[$defaultDriver])) {
-            throw new \InvalidArgumentException(\sprintf('The default driver "%s" is not configured; configured drivers: "%s".', $defaultDriver, implode('", "', array_keys($drivers))));
+        if (!\array_key_exists($defaultDriver, $drivers)) {
+            throw new \InvalidArgumentException(\sprintf('The default driver "%s" is not configured; configured drivers: "%s".', $defaultDriver, \implode('", "', \array_keys($drivers))));
         }
         $this->driverName = $defaultDriver;
     }
@@ -62,11 +64,11 @@ final class Tuink
      */
     public static function fromConfig(array $config, string $basePath): self
     {
-        $resolve = static fn (string $path): string => str_starts_with($path, '/') || preg_match('~^[A-Za-z]:[\\\\/]~', $path) ? $path : $basePath.'/'.$path;
+        $resolve = static fn (string $path): string => \str_starts_with($path, '/') || \preg_match('~^[A-Za-z]:[\\\\/]~', $path) ? $path : $basePath.'/'.$path;
 
         $drivers = [];
         $quiet = [];
-        if (isset($config['in_process'])) {
+        if (\array_key_exists('in_process', $config)) {
             $path = $resolve($config['in_process']['factory']);
             $factory = null;
             // The file is required once: a factory file that declares functions or classes cannot run twice
@@ -77,7 +79,7 @@ final class Tuink
             };
             $quiet['in_process'] = $config['quiet_period'] ?? self::IN_PROCESS_QUIET_PERIOD;
         }
-        if (isset($config['process'])) {
+        if (\array_key_exists('process', $config)) {
             $process = $config['process'];
             $cwd = $resolve($process['cwd'] ?? '.');
             $drivers['process'] = static fn (): DriverInterface => new ProcessDriver($process['command'], $cwd, $process['env'], $process['probe_timeout'] ?? 2.0);
@@ -97,7 +99,7 @@ final class Tuink
 
     public function hasDriver(string $name): bool
     {
-        return isset($this->drivers[$name]);
+        return \array_key_exists($name, $this->drivers);
     }
 
     /**
@@ -105,7 +107,7 @@ final class Tuink
      */
     public function getDriverNames(): array
     {
-        return array_keys($this->drivers);
+        return \array_keys($this->drivers);
     }
 
     public function getDriverName(): string
@@ -118,8 +120,8 @@ final class Tuink
      */
     public function useDriver(string $name): void
     {
-        if (!isset($this->drivers[$name])) {
-            throw new \InvalidArgumentException(\sprintf('The driver "%s" is not configured; configured drivers: "%s".', $name, implode('", "', array_keys($this->drivers))));
+        if (!\array_key_exists($name, $this->drivers)) {
+            throw new \InvalidArgumentException(\sprintf('The driver "%s" is not configured; configured drivers: "%s".', $name, \implode('", "', \array_keys($this->drivers))));
         }
         if ($name !== $this->driverName) {
             $this->reset();
@@ -130,7 +132,7 @@ final class Tuink
     public function getSession(): Session
     {
         return $this->session ??= new Session(
-            ($this->drivers[$this->driverName])(),
+            $this->drivers[$this->driverName](),
             $this->columns,
             $this->rows,
             $this->timeout,

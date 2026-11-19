@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 /*
  * This file is part of the tuink package.
  *
@@ -29,15 +31,16 @@ final class SessionTest extends TestCase
     protected function tearDown(): void
     {
         $this->session?->stop();
-        if (null !== $this->snapshotDir && is_dir($this->snapshotDir)) {
+        if (null !== $this->snapshotDir && \is_dir($this->snapshotDir)) {
             $files = new \RecursiveIteratorIterator(new \RecursiveDirectoryIterator($this->snapshotDir, \FilesystemIterator::SKIP_DOTS), \RecursiveIteratorIterator::CHILD_FIRST);
             foreach ($files as $file) {
-                $file->isDir() ? rmdir($file->getPathname()) : unlink($file->getPathname());
+                \assert($file instanceof \SplFileInfo, description: 'The iterator yields files.');
+                $file->isDir() ? \rmdir($file->getPathname()) : \unlink($file->getPathname());
             }
-            rmdir($this->snapshotDir);
+            \rmdir($this->snapshotDir);
         }
-        putenv('CI');
-        putenv('TUINK_UPDATE_SNAPSHOTS');
+        \putenv('CI');
+        \putenv('TUINK_UPDATE_SNAPSHOTS');
     }
 
     public function testStartSettlesOnTheFirstFrame(): void
@@ -54,7 +57,7 @@ final class SessionTest extends TestCase
         $session = $this->demo();
         $session->type('Ada');
         $session->press('Enter');
-        $session->press('Down', 2);
+        $session->press('Down', times: 2);
         $session->press('Enter');
 
         $session->assertSee('You picked Blue');
@@ -88,7 +91,7 @@ final class SessionTest extends TestCase
         $session->assertNotSee('Hello');
 
         $this->expectException(ExpectationException::class);
-        $this->expectExceptionMessage('The text "Tuink" was found on the screen.');
+        $this->expectExceptionMessageIsOrContains('The text "Tuink" was found on the screen.');
         $session->assertNotSee('Tuink');
     }
 
@@ -96,12 +99,12 @@ final class SessionTest extends TestCase
     {
         $session = $this->demo(timeout: 0.1);
         $session->type('Ada');
-        $session->assertLineEquals(4, 'Name: Ada  ');
-        $session->assertLineContains(4, 'Ada');
+        $session->assertLineEquals(4, text: 'Name: Ada  ');
+        $session->assertLineContains(4, text: 'Ada');
 
         $this->expectException(ExpectationException::class);
-        $this->expectExceptionMessage('Line 30 does not contain "Ada".');
-        $session->assertLineContains(30, 'Ada');
+        $this->expectExceptionMessageIsOrContains('Line 30 does not contain "Ada".');
+        $session->assertLineContains(30, text: 'Ada');
     }
 
     public function testGetLineOutOfRange(): void
@@ -112,38 +115,50 @@ final class SessionTest extends TestCase
 
     public function testAssertScreenEqualsIgnoresTrailingSpaceAndBlankLines(): void
     {
-        $session = $this->session = new Session(new InProcessDriver(static function (VirtualTerminal $terminal): Tui {
-            $tui = new Tui(terminal: $terminal);
-            $tui->add(new TextWidget("one\n  two"));
+        $session = $this->keep(new Session(
+            new InProcessDriver(static function (VirtualTerminal $terminal): Tui {
+                $tui = new Tui(terminal: $terminal);
+                $tui->add(new TextWidget("one\n  two"));
 
-            return $tui;
-        }), 20, 5, 0.1);
+                return $tui;
+            }),
+            20,
+            5,
+            0.1,
+        ));
         $session->start();
 
         $session->assertScreenEquals("one   \n  two\n\n");
 
         $this->expectException(ExpectationException::class);
-        $this->expectExceptionMessage("The screen is not:\n1 | one\n2 | two");
+        $this->expectExceptionMessageIsOrContains("The screen is not:\n1 | one\n2 | two");
         $session->assertScreenEquals("one\ntwo");
     }
 
     public function testRegion(): void
     {
-        $session = $this->session = new Session(new InProcessDriver(static function (VirtualTerminal $terminal): Tui {
-            $tui = new Tui(terminal: $terminal);
-            $tui->add(new TextWidget("ab 世界 cd\nefgh   \nwide 😀!"));
+        $session = $this->keep(new Session(
+            new InProcessDriver(static function (VirtualTerminal $terminal): Tui {
+                $tui = new Tui(terminal: $terminal);
+                $tui->add(new TextWidget("ab 世界 cd\nefgh   \nwide 😀!"));
 
-            return $tui;
-        }), 20, 5, 0.1);
+                return $tui;
+            }),
+            20,
+            5,
+            0.1,
+        ));
         $session->start();
 
-        $session->assertRegionEquals(1, 4, "世界\nh");
-        $this->assertSame('界 cd', $session->getRegion(1, 6, 5, 1), 'Columns count display cells, not characters.');
-        $this->assertSame('😀!', $session->getRegion(3, 6, 3, 2), 'Blank rows at the bottom are trimmed.');
-        $session->assertRegionEquals(2, 1, 'efgh   ');
+        $session->assertRegionEquals(1, column: 4, expected: "世界\nh");
+        // Columns count display cells, not characters.
+        $this->assertSame('界 cd', $session->getRegion(1, column: 6, width: 5, height: 1));
+        // Blank rows at the bottom are trimmed.
+        $this->assertSame('😀!', $session->getRegion(3, column: 6, width: 3, height: 2));
+        $session->assertRegionEquals(2, column: 1, expected: 'efgh   ');
 
         try {
-            $session->assertRegionEquals(1, 1, 'ab 界');
+            $session->assertRegionEquals(1, column: 1, expected: 'ab 界');
             $this->fail('An expectation exception was expected.');
         } catch (ExpectationException $e) {
             $this->assertStringContainsString("The region at line 1, column 1 is not:\n1 | ab 界\n\nIt is:\n1 | ab 世", $e->getMessage());
@@ -153,7 +168,7 @@ final class SessionTest extends TestCase
     public function testRegionMustStartOnTheScreen(): void
     {
         $this->expectException(\InvalidArgumentException::class);
-        $this->demo(timeout: 0.1)->assertRegionEquals(0, 1, 'x');
+        $this->demo(timeout: 0.1)->assertRegionEquals(line: 0, column: 1, expected: 'x');
     }
 
     public function testSnapshotIsTheNormalizedScreen(): void
@@ -166,12 +181,12 @@ final class SessionTest extends TestCase
 
     public function testSnapshotIsWrittenThenCompared(): void
     {
-        $session = $this->demo(snapshots: true, timeout: 0.1);
-        $path = $this->snapshotDir.'/demo/start.txt';
+        $session = $this->demoWithSnapshots();
+        $path = $this->snapshotDir().'/demo/start.txt';
 
         $session->assertMatchesSnapshot('demo/start');
         $this->assertFileExists($path);
-        $this->assertStringStartsWith("Tuink demo\n", (string) file_get_contents($path));
+        $this->assertStringStartsWith("Tuink demo\n", (string) \file_get_contents($path));
         $session->assertMatchesSnapshot('demo/start');
 
         $session->type('Ada');
@@ -181,29 +196,29 @@ final class SessionTest extends TestCase
 
     public function testSnapshotUpdate(): void
     {
-        $session = $this->demo(snapshots: true, timeout: 0.1);
+        $session = $this->demoWithSnapshots();
         $session->assertMatchesSnapshot('start');
         $session->type('Ada');
 
-        putenv('TUINK_UPDATE_SNAPSHOTS=1');
+        \putenv('TUINK_UPDATE_SNAPSHOTS=1');
         $session->assertMatchesSnapshot('start');
 
-        $this->assertStringContainsString('Name: Ada', (string) file_get_contents($this->snapshotDir.'/start.txt'));
+        $this->assertStringContainsString('Name: Ada', (string) \file_get_contents($this->snapshotDir().'/start.txt'));
     }
 
     public function testMissingSnapshotFailsOnCi(): void
     {
-        putenv('CI=true');
-        $session = $this->demo(snapshots: true, timeout: 0.1);
+        \putenv('CI=true');
+        $session = $this->demoWithSnapshots();
 
         $this->expectException(ExpectationException::class);
-        $this->expectExceptionMessage('does not exist; record it locally and commit it.');
+        $this->expectExceptionMessageIsOrContains('does not exist; record it locally and commit it.');
         $session->assertMatchesSnapshot('start');
     }
 
     public function testSnapshotNamesStayInTheDirectory(): void
     {
-        $session = $this->demo(snapshots: true, timeout: 0.1);
+        $session = $this->demoWithSnapshots();
 
         $this->expectException(\InvalidArgumentException::class);
         $session->assertMatchesSnapshot('../escape');
@@ -218,7 +233,7 @@ final class SessionTest extends TestCase
         $this->assertStringContainsString('in_process driver, exited', $session->dump());
 
         $this->expectException(ExpectationException::class);
-        $this->expectExceptionMessage('The application is no longer running.');
+        $this->expectExceptionMessageIsOrContains('The application is no longer running.');
         $session->type('x');
     }
 
@@ -243,18 +258,18 @@ final class SessionTest extends TestCase
     public function testTheApplicationsTimersDieWithIt(): void
     {
         $fired = false;
-        $session = $this->session = new Session(new InProcessDriver(static function (VirtualTerminal $terminal) use (&$fired): Tui {
+        $session = $this->keep(new Session(new InProcessDriver(static function (VirtualTerminal $terminal) use (&$fired): Tui {
             EventLoop::delay(0.3, static function () use (&$fired): void {
                 $fired = true;
             });
 
             return new Tui(terminal: $terminal);
-        }), timeout: 0.1);
+        }), timeout: 0.1));
         $session->start();
         $session->stop();
 
         $suspension = EventLoop::getSuspension();
-        EventLoop::delay(0.4, static fn () => $suspension->resume());
+        EventLoop::delay(0.4, $suspension->resume(...));
         $suspension->suspend();
 
         $this->assertFalse($fired);
@@ -263,7 +278,7 @@ final class SessionTest extends TestCase
     public function testResize(): void
     {
         $session = $this->demo(timeout: 0.5);
-        $session->resize(40, 8);
+        $session->resize(40, rows: 8);
 
         $this->assertCount(8, $session->getLines());
         $session->assertSee('Size: 40x8');
@@ -280,14 +295,22 @@ final class SessionTest extends TestCase
         $this->assertSame('Name: Grace', $session->getLine(4));
     }
 
-    private function demo(float $timeout = 2.0, bool $snapshots = false): Session
+    private function snapshotDir(): string
     {
-        if ($snapshots) {
-            $this->snapshotDir = sys_get_temp_dir().'/tuink-snapshots-'.bin2hex(random_bytes(4));
-        }
+        return $this->snapshotDir ?? throw new \LogicException('This test has no snapshot directory.');
+    }
 
+    private function demoWithSnapshots(): Session
+    {
+        $this->snapshotDir = \sys_get_temp_dir().'/tuink-snapshots-'.\bin2hex(\random_bytes(4));
+
+        return $this->demo(timeout: 0.1);
+    }
+
+    private function demo(float $timeout = 2.0): Session
+    {
         $this->session = new Session(
-            new InProcessDriver(static fn (VirtualTerminal $terminal): Tui => (new DemoApp($terminal))->tui),
+            new InProcessDriver(static fn (VirtualTerminal $terminal): Tui => new DemoApp($terminal)->tui),
             timeout: $timeout,
             quietPeriod: 0.02,
             snapshotDir: $this->snapshotDir,
@@ -295,5 +318,12 @@ final class SessionTest extends TestCase
         $this->session->start();
 
         return $this->session;
+    }
+
+    private function keep(Session $session): Session
+    {
+        $this->session = $session;
+
+        return $session;
     }
 }

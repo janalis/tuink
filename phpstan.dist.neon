@@ -1,8 +1,0 @@
-parameters:
-    level: 8
-    paths:
-        - src
-        - example
-        - tests
-        - features/bootstrap
-        - behat.dist.php

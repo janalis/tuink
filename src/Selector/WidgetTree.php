@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 /*
  * This file is part of the tuink package.
  *
@@ -48,8 +50,7 @@ final class WidgetTree
     public function __construct(
         public readonly \DOMDocument $document,
         public readonly array $widgets = [],
-    ) {
-    }
+    ) {}
 
     public static function fromTui(Tui $tui): self
     {
@@ -63,7 +64,14 @@ final class WidgetTree
     public static function fromXml(string $xml): self
     {
         $document = new \DOMDocument();
-        if ('' === $xml || !@$document->loadXML($xml, \LIBXML_NONET)) {
+        $internal = \libxml_use_internal_errors(true);
+        try {
+            $loaded = '' !== $xml && $document->loadXML($xml, \LIBXML_NONET);
+        } finally {
+            \libxml_clear_errors();
+            \libxml_use_internal_errors($internal);
+        }
+        if (!$loaded) {
             throw new \UnexpectedValueException('The widget tree is not valid XML.');
         }
 
@@ -82,12 +90,12 @@ final class WidgetTree
      */
     public static function elementName(string $class): string
     {
-        $short = substr($class, (int) strrpos('\\'.$class, '\\'));
-        if (str_ends_with($short, 'Widget') && 'Widget' !== $short) {
-            $short = substr($short, 0, -6);
+        $short = \substr($class, (int) \strrpos('\\'.$class, needle: '\\'));
+        if (\str_ends_with($short, 'Widget') && 'Widget' !== $short) {
+            $short = \substr($short, offset: 0, length: -6);
         }
 
-        return strtolower((string) preg_replace('/(?<=[a-z0-9])(?=[A-Z])|(?<=[A-Z])(?=[A-Z][a-z])/', '-', $short));
+        return \strtolower((string) \preg_replace('/(?<=[a-z0-9])(?=[A-Z])|(?<=[A-Z])(?=[A-Z][a-z])/', replacement: '-', subject: $short));
     }
 
     /**
@@ -99,33 +107,33 @@ final class WidgetTree
         $widgets[] = $widget;
 
         $node = $document->createElement(self::elementName($widget::class));
+        if (false === $node) {
+            throw new \LogicException(\sprintf('Cannot mirror a %s.', $widget::class));
+        }
         $node->setAttribute(self::INDEX, (string) $index);
         $node->setAttribute('widget', $widget::class);
-        if (null !== $id = $widget->getId()) {
+        if (null !== ($id = $widget->getId())) {
             $node->setAttribute('id', $id);
         }
-        if ([] !== $classes = $widget->getStyleClasses()) {
-            $node->setAttribute('class', implode(' ', $classes));
+        if ([] !== ($classes = $widget->getStyleClasses())) {
+            $node->setAttribute('class', \implode(' ', $classes));
         }
-        if (null !== $label = $widget->getLabel()) {
+        if (null !== ($label = $widget->getLabel())) {
             $node->setAttribute('label', $label);
         }
-        if (null !== $value = self::value($widget)) {
+        if (null !== ($value = self::value($widget))) {
             $node->setAttribute('value', $value);
         }
-        if (method_exists($widget, 'getSelectedItem')) {
-            $item = $widget->getSelectedItem();
-            if (\is_array($item) && \is_string($item['label'] ?? null)) {
-                $node->setAttribute('selected', $item['label']);
-            }
+        if (null !== ($selected = self::selected($widget))) {
+            $node->setAttribute('selected', $selected);
         }
-        if (\in_array('focus', $widget->getStateFlags(), true)) {
-            $node->setAttribute(self::FOCUS, '');
+        if (\in_array('focus', $widget->getStateFlags(), strict: true)) {
+            $node->setAttribute(qualifiedName: self::FOCUS, value: '');
         }
 
         $rect = $tui->getWidgetRect($widget);
         if (null !== $rect && $rect->rows > 0 && $rect->columns > 0) {
-            $node->setAttribute(self::VISIBLE, '');
+            $node->setAttribute(qualifiedName: self::VISIBLE, value: '');
             $node->setAttribute(self::ROW, (string) $rect->row);
             $node->setAttribute(self::COLUMN, (string) $rect->col);
             $node->setAttribute(self::ROWS, (string) $rect->rows);
@@ -134,7 +142,7 @@ final class WidgetTree
 
         $children = $widget instanceof ParentInterface ? $widget->all() : [];
         if ([] === $children) {
-            $node->setAttribute(self::LEAF, '');
+            $node->setAttribute(qualifiedName: self::LEAF, value: '');
         }
         foreach ($children as $child) {
             $node->appendChild(self::mirror($tui, $document, $child, $widgets));
@@ -145,30 +153,52 @@ final class WidgetTree
 
     private static function value(AbstractWidget $widget): ?string
     {
-        if (!method_exists($widget, 'getValue')) {
+        if (!\method_exists($widget, 'getValue')) {
             return null;
         }
-        $value = $widget->getValue();
 
+        return self::scalar($widget->getValue());
+    }
+
+    /**
+     * The label of the item a list widget has selected.
+     */
+    private static function selected(AbstractWidget $widget): ?string
+    {
+        return \method_exists($widget, 'getSelectedItem') ? self::label($widget->getSelectedItem()) : null;
+    }
+
+    private static function label(mixed $item): ?string
+    {
+        return \is_array($item) && \is_string($item['label'] ?? null) ? $item['label'] : null;
+    }
+
+    private static function scalar(mixed $value): ?string
+    {
         return \is_string($value) || \is_int($value) || \is_float($value) ? (string) $value : null;
     }
 
     private static function root(Tui $tui): AbstractWidget
     {
         // Releases without Tui::getRoot() keep the root container private: read the property then
-        if (method_exists($tui, 'getRoot')) {
-            $root = $tui->getRoot();
-        } else {
-            try {
-                $root = (new \ReflectionProperty(Tui::class, 'root'))->getValue($tui);
-            } catch (\ReflectionException $e) {
-                throw new \LogicException('This version of symfony/tui has neither Tui::getRoot() nor a root property tuink can read.', 0, $e);
-            }
-        }
+        return self::widget(\method_exists($tui, 'getRoot') ? $tui->getRoot() : self::privateRoot($tui));
+    }
+
+    private static function widget(mixed $root): AbstractWidget
+    {
         if (!$root instanceof AbstractWidget) {
             throw new \LogicException('This version of symfony/tui has neither Tui::getRoot() nor a root property tuink can read.');
         }
 
         return $root;
+    }
+
+    private static function privateRoot(Tui $tui): mixed
+    {
+        try {
+            return new \ReflectionProperty(Tui::class, 'root')->getValue($tui);
+        } catch (\ReflectionException $e) {
+            throw new \LogicException('This version of symfony/tui has neither Tui::getRoot() nor a root property tuink can read.', previous: $e);
+        }
     }
 }

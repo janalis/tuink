@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 /*
  * This file is part of the tuink package.
  *
@@ -35,8 +37,7 @@ final class Element
         public readonly string $text,
         /** The widget itself, when the application runs in this process */
         public readonly ?AbstractWidget $widget = null,
-    ) {
-    }
+    ) {}
 
     /**
      * Whether the widget was drawn in the last frame.
@@ -51,6 +52,6 @@ final class Element
      */
     public function describe(): string
     {
-        return $this->name.(null === $this->id ? '' : '#'.$this->id).implode('', array_map(static fn (string $class): string => '.'.$class, $this->classes));
+        return $this->name.(null === $this->id ? '' : '#'.$this->id).\implode('', \array_map(static fn (string $class): string => '.'.$class, $this->classes));
     }
 }

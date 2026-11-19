@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 /*
  * This file is part of the tuink package.
  *
@@ -77,89 +79,9 @@ final class Keys
      */
     public static function key(string $name): string
     {
-        $spec = trim($name);
-        if (str_starts_with($spec, '<') && str_ends_with($spec, '>') && \strlen($spec) > 2) {
-            $spec = substr($spec, 1, -1);
-        }
-        if ('' === $spec) {
-            throw new \InvalidArgumentException('A key name cannot be empty.');
-        }
+        [$base, $modifier] = self::parse($name);
 
-        // "+" alone, or a trailing "+" as in "Ctrl++", names the plus key itself
-        $parts = '+' === $spec ? ['+'] : explode('+', $spec);
-        if ('' === end($parts) && \count($parts) > 1) {
-            array_pop($parts);
-            $parts[\count($parts) - 1] = '+';
-        }
-
-        $base = array_pop($parts);
-        $shift = $alt = $ctrl = false;
-        foreach ($parts as $modifier) {
-            match (strtolower(trim($modifier))) {
-                'shift' => $shift = true,
-                'alt', 'meta', 'option' => $alt = true,
-                'ctrl', 'control' => $ctrl = true,
-                default => throw new \InvalidArgumentException(\sprintf('Unknown modifier "%s" in key "%s".', $modifier, $name)),
-            };
-        }
-
-        $lower = strtolower($base);
-        $modifier = 1 + ($shift ? 1 : 0) + ($alt ? 2 : 0) + ($ctrl ? 4 : 0);
-
-        if (isset(self::CURSOR[$lower])) {
-            $final = self::CURSOR[$lower];
-            if (1 !== $modifier) {
-                return "\x1b[1;{$modifier}{$final}";
-            }
-
-            return str_starts_with($lower, 'f') ? "\x1bO{$final}" : "\x1b[{$final}";
-        }
-
-        if (isset(self::TILDE[$lower]) && 1 !== $modifier) {
-            return "\x1b[".self::TILDE[$lower].";{$modifier}~";
-        }
-
-        if ('tab' === $lower && $shift && !$alt && !$ctrl) {
-            return "\x1b[Z";
-        }
-
-        if ('enter' === $lower || 'return' === $lower) {
-            if (1 !== $modifier) {
-                // xterm modifyOtherKeys form, which the Tui key parser understands
-                return "\x1b[27;{$modifier};13~";
-            }
-
-            return "\r";
-        }
-
-        if ('space' === $lower && $ctrl && !$shift) {
-            return ($alt ? "\x1b" : '')."\x00";
-        }
-
-        if (isset(self::NAMED[$lower])) {
-            if ($ctrl || $shift) {
-                // Legacy encodings have no room for these: send the CSI u form (kitty keyboard protocol), which the Tui key parser reads
-                return \sprintf("\x1b[%d;%du", \ord(self::NAMED[$lower][-1]), $modifier);
-            }
-
-            return ($alt ? "\x1b" : '').self::NAMED[$lower];
-        }
-
-        if (1 !== mb_strlen($base)) {
-            throw new \InvalidArgumentException(\sprintf('Unknown key "%s".', $name));
-        }
-
-        if ($ctrl && ($shift || $alt) && 1 === \strlen($base) && ctype_alpha($base)) {
-            // A control code cannot carry Shift, nor Alt cleanly: CSI u names the letter and every modifier
-            return \sprintf("\x1b[%d;%du", \ord(strtolower($base)), $modifier);
-        }
-
-        $char = $shift ? mb_strtoupper($base) : $base;
-        if ($ctrl) {
-            $char = self::control($char, $name);
-        }
-
-        return ($alt ? "\x1b" : '').$char;
+        return self::special(\strtolower($base), $modifier) ?? self::character($base, $modifier, $name);
     }
 
     /**
@@ -171,7 +93,7 @@ final class Keys
      */
     public static function sequence(string $text): string
     {
-        return (string) preg_replace_callback(
+        return (string) \preg_replace_callback(
             '/<((?:[A-Za-z]+\+)+[^\s<>]+|[A-Za-z][A-Za-z0-9]+)>/',
             static function (array $match): string {
                 try {
@@ -184,9 +106,102 @@ final class Keys
         );
     }
 
+    /**
+     * Splits "<Ctrl+Shift+Up>" into its key and the xterm modifier parameter: 1, plus 1 for Shift, 2 for Alt, 4 for Ctrl.
+     *
+     * @return array{string, int}
+     */
+    private static function parse(string $name): array
+    {
+        $spec = \trim($name);
+        if (\str_starts_with($spec, '<') && \str_ends_with($spec, '>') && \strlen($spec) > 2) {
+            $spec = \substr($spec, offset: 1, length: -1);
+        }
+        if ('' === $spec) {
+            throw new \InvalidArgumentException('A key name cannot be empty.');
+        }
+
+        // "+" alone, or a trailing "+" as in "Ctrl++", names the plus key itself
+        $parts = '+' === $spec ? ['+'] : \explode('+', $spec);
+        if ('' === \end($parts) && \count($parts) > 1) {
+            \array_pop($parts);
+            $parts[\count($parts) - 1] = '+';
+        }
+        $base = (string) \array_pop($parts);
+
+        $bits = 0;
+        foreach ($parts as $part) {
+            $bits |= match (\strtolower(\trim($part))) {
+                'shift' => 1,
+                'alt', 'meta', 'option' => 2,
+                'ctrl', 'control' => 4,
+                default => throw new \InvalidArgumentException(\sprintf('Unknown modifier "%s" in key "%s".', $part, $name)),
+            };
+        }
+
+        return [$base, 1 + $bits];
+    }
+
+    /**
+     * The bytes of a named key, or null for a single character.
+     */
+    private static function special(string $lower, int $modifier): ?string
+    {
+        $bits = $modifier - 1;
+        if (\array_key_exists($lower, self::CURSOR)) {
+            $final = self::CURSOR[$lower];
+            if (1 !== $modifier) {
+                return "\x1b[1;{$modifier}{$final}";
+            }
+
+            return \str_starts_with($lower, 'f') ? "\x1bO{$final}" : "\x1b[{$final}";
+        }
+        if (\array_key_exists($lower, self::TILDE) && 1 !== $modifier) {
+            return "\x1b[".self::TILDE[$lower].";{$modifier}~";
+        }
+        if ('tab' === $lower && 1 === $bits) {
+            return "\x1b[Z";
+        }
+        if ('enter' === $lower || 'return' === $lower) {
+            // Modified, the xterm modifyOtherKeys form, which the Tui key parser understands
+            return 1 === $modifier ? "\r" : "\x1b[27;{$modifier};13~";
+        }
+        if ('space' === $lower && 4 === ($bits & 5)) {
+            return (0 !== ($bits & 2) ? "\x1b" : '')."\x00";
+        }
+        if (!\array_key_exists($lower, self::NAMED)) {
+            return null;
+        }
+        if (0 !== ($bits & 5)) {
+            // Legacy encodings have no room for Shift or Ctrl here: send the CSI u form (kitty keyboard protocol), which the Tui key parser reads
+            return \sprintf("\x1b[%d;%du", \ord(\substr(self::NAMED[$lower], offset: -1)), $modifier);
+        }
+
+        return (0 !== ($bits & 2) ? "\x1b" : '').self::NAMED[$lower];
+    }
+
+    private static function character(string $base, int $modifier, string $name): string
+    {
+        if (1 !== \mb_strlen($base)) {
+            throw new \InvalidArgumentException(\sprintf('Unknown key "%s".', $name));
+        }
+        $bits = $modifier - 1;
+        if (0 !== ($bits & 4) && 0 !== ($bits & 3) && 1 === \strlen($base) && \ctype_alpha($base)) {
+            // A control code cannot carry Shift, nor Alt cleanly: CSI u names the letter and every modifier
+            return \sprintf("\x1b[%d;%du", \ord(\strtolower($base)), $modifier);
+        }
+
+        $char = 0 !== ($bits & 1) ? \mb_strtoupper($base) : $base;
+        if (0 !== ($bits & 4)) {
+            $char = self::control($char, $name);
+        }
+
+        return (0 !== ($bits & 2) ? "\x1b" : '').$char;
+    }
+
     private static function control(string $char, string $name): string
     {
-        $code = 1 === \strlen($char) ? \ord(strtoupper($char)) : 0;
+        $code = 1 === \strlen($char) ? \ord(\strtoupper($char)) : 0;
         if ($code >= 64 && $code <= 95) {
             // Ctrl clears the two high bits: Ctrl+@ is NUL, Ctrl+A is 1, Ctrl+_ is 31
             return \chr($code - 64);

@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 /*
  * This file is part of the tuink package.
  *
@@ -21,8 +23,7 @@ final class TuinkAwareInitializer implements ContextInitializer
 {
     public function __construct(
         private readonly Tuink $tuink,
-    ) {
-    }
+    ) {}
 
     public function initializeContext(Context $context): void
     {

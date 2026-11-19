@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 /*
  * This file is part of the tuink package.
  *
@@ -29,8 +31,7 @@ final class SessionListener implements EventSubscriberInterface
 
     public function __construct(
         private readonly Tuink $tuink,
-    ) {
-    }
+    ) {}
 
     public static function getSubscribedEvents(): array
     {
@@ -51,13 +52,13 @@ final class SessionListener implements EventSubscriberInterface
         // A scenario tag overrides a feature tag
         foreach ([$scenario instanceof TaggedNodeInterface ? $scenario->getTags() : [], $event->getFeature()->getTags()] as $tags) {
             // Recent Gherkin versions keep the "@" in tag names
-            $names = array_map(static fn (string $tag): string => ltrim($tag, '@'), $tags);
-            foreach (array_diff(array_intersect($names, self::DRIVER_NAMES), $this->tuink->getDriverNames()) as $missing) {
+            $names = \array_map(static fn (string $tag): string => \ltrim($tag, characters: '@'), $tags);
+            foreach (\array_diff(\array_intersect($names, self::DRIVER_NAMES), $this->tuink->getDriverNames()) as $missing) {
                 throw new \LogicException(\sprintf('"%s" is tagged @%s, but the %s driver is not configured.', $scenario->getTitle() ?? $event->getFeature()->getTitle() ?? '', $missing, $missing));
             }
-            $wanted = array_values(array_unique(array_filter($names, $this->tuink->hasDriver(...))));
+            $wanted = \array_values(\array_unique(\array_filter($names, $this->tuink->hasDriver(...))));
             if (\count($wanted) > 1) {
-                throw new \LogicException(\sprintf('"%s" is tagged with more than one driver: @%s.', $scenario->getTitle() ?? $event->getFeature()->getTitle() ?? '', implode(', @', $wanted)));
+                throw new \LogicException(\sprintf('"%s" is tagged with more than one driver: @%s.', $scenario->getTitle() ?? $event->getFeature()->getTitle() ?? '', \implode(', @', $wanted)));
             }
             if ([] !== $wanted) {
                 $this->tuink->useDriver($wanted[0]);

@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 /*
  * This file is part of the tuink package.
  *
@@ -35,8 +37,7 @@ final class Session
         private readonly float $timeout = 2.0,
         private readonly float $quietPeriod = 0.05,
         private readonly ?string $snapshotDir = null,
-    ) {
-    }
+    ) {}
 
     public function getDriver(): DriverInterface
     {
@@ -58,7 +59,7 @@ final class Session
         $this->columns = $columns ?? $this->columns;
         $this->rows = $rows ?? $this->rows;
         $this->driver->start($this->columns, $this->rows);
-        $this->settle(true);
+        $this->settleFrom(null);
     }
 
     public function stop(): void
@@ -181,10 +182,10 @@ final class Session
         $this->checkOnScreen($fromLine, $fromColumn);
         $this->checkOnScreen($toLine, $toColumn);
         // One cell per step along the longer axis; a drag that does not move still presses, moves and releases in place
-        $steps = max(abs($toLine - $fromLine), abs($toColumn - $fromColumn), 1);
+        $steps = \max(\abs($toLine - $fromLine), \abs($toColumn - $fromColumn), 1);
         $path = [];
         for ($i = 0; $i <= $steps; ++$i) {
-            $path[] = [$fromLine + (int) round(($toLine - $fromLine) * $i / $steps), $fromColumn + (int) round(($toColumn - $fromColumn) * $i / $steps)];
+            $path[] = [$fromLine + (int) \round((($toLine - $fromLine) * $i) / $steps), $fromColumn + (int) \round((($toColumn - $fromColumn) * $i) / $steps)];
         }
         $this->driver->send(Mouse::drag($path, $button));
         $this->settle();
@@ -240,9 +241,7 @@ final class Session
     public function selectOption(string $selector, string $label): void
     {
         $this->focus($selector);
-        $selected = function () use ($selector): string {
-            return $this->findOne($selector)->selected ?? throw new \LogicException(\sprintf('The element "%s" has no selected item; it is not a list.', $selector));
-        };
+        $selected = fn () => $this->findOne($selector)->selected ?? throw new \LogicException(\sprintf('The element "%s" has no selected item; it is not a list.', $selector));
 
         // Walk down, then up; a direction ends when the selection comes back to an item already seen, at the end of the list or after wrapping around
         $seen = [$selected() => true];
@@ -255,14 +254,14 @@ final class Session
                 }
                 $this->press($key);
                 $now = $selected();
-                if (isset($seen[$now]) && $now !== $label) {
+                if (\array_key_exists($now, $seen) && $now !== $label) {
                     break;
                 }
                 $seen[$now] = true;
             }
         }
 
-        throw new ExpectationException(\sprintf('The list "%s" has no item "%s"; its items are "%s".', $selector, $label, implode('", "', array_keys($seen))), $this->dump());
+        throw new ExpectationException(\sprintf('The list "%s" has no item "%s"; its items are "%s".', $selector, $label, \implode('", "', \array_keys($seen))), $this->dump());
     }
 
     /**
@@ -280,31 +279,15 @@ final class Session
         $this->columns = $columns;
         $this->rows = $rows;
         $this->driver->resize($columns, $rows);
-        $this->settle(true);
+        $this->settleFrom(null);
     }
 
     /**
      * Lets the application run until its output has been quiet for a moment, or the timeout passed.
-     *
-     * @param bool $awaitFrame Wait until the screen shows something before counting the quiet time: an application
-     *                         often writes escape sequences (modes, a title) before its first frame
      */
-    public function settle(bool $awaitFrame = false): void
+    public function settle(): void
     {
-        $deadline = microtime(true) + $this->timeout;
-        $lastWrite = $awaitFrame ? null : microtime(true);
-
-        while (microtime(true) < $deadline) {
-            if ($this->driver->pump(0.005)) {
-                if (!$awaitFrame || '' !== $this->getScreenText()) {
-                    $lastWrite = microtime(true);
-                }
-            } elseif (!$this->driver->isRunning()) {
-                return;
-            } elseif (null !== $lastWrite && microtime(true) - $lastWrite >= $this->quietPeriod) {
-                return;
-            }
-        }
+        $this->settleFrom(\microtime(true));
     }
 
     /**
@@ -320,7 +303,7 @@ final class Session
      */
     public function getLines(): array
     {
-        return array_values(array_map(rtrim(...), $this->driver->getScreen()->getLines()));
+        return \array_values(\array_map(rtrim(...), $this->driver->getScreen()->getLines()));
     }
 
     /**
@@ -344,13 +327,13 @@ final class Session
      */
     public function waitUntil(callable $condition, string|\Closure $message, ?float $timeout = null): void
     {
-        $deadline = microtime(true) + ($timeout ?? $this->timeout);
+        $deadline = \microtime(true) + ($timeout ?? $this->timeout);
 
         while (true) {
             if ($condition($this)) {
                 return;
             }
-            if (microtime(true) >= $deadline) {
+            if (\microtime(true) >= $deadline) {
                 throw new ExpectationException(\is_string($message) ? $message : $message(), $this->dump());
             }
             if ($this->driver->isStarted()) {
@@ -362,7 +345,7 @@ final class Session
     public function assertSee(string $text): void
     {
         $this->waitUntil(
-            static fn (self $s): bool => str_contains($s->getScreenText(), $text),
+            static fn (self $s): bool => \str_contains($s->getScreenText(), $text),
             \sprintf('The text "%s" was not found on the screen.', $text),
         );
     }
@@ -371,7 +354,7 @@ final class Session
     {
         $this->settle();
         $this->waitUntil(
-            static fn (self $s): bool => !str_contains($s->getScreenText(), $text),
+            static fn (self $s): bool => !\str_contains($s->getScreenText(), $text),
             \sprintf('The text "%s" was found on the screen.', $text),
         );
     }
@@ -379,7 +362,7 @@ final class Session
     public function assertSeeMatch(string $pattern): void
     {
         $this->waitUntil(
-            static fn (self $s): bool => 1 === preg_match($pattern, $s->getScreenText()),
+            static fn (self $s): bool => 1 === \preg_match($pattern, $s->getScreenText()),
             \sprintf('No text on the screen matches %s.', $pattern),
         );
     }
@@ -388,7 +371,7 @@ final class Session
     {
         $this->settle();
         $this->waitUntil(
-            static fn (self $s): bool => 1 !== preg_match($pattern, $s->getScreenText()),
+            static fn (self $s): bool => 1 !== \preg_match($pattern, $s->getScreenText()),
             \sprintf('Text on the screen matches %s.', $pattern),
         );
     }
@@ -398,7 +381,7 @@ final class Session
      */
     public function assertSeeCount(string $text, int $count): void
     {
-        $occurrences = static fn (self $s): int => array_sum(array_map(static fn (string $line): int => substr_count($line, $text), $s->getLines()));
+        $occurrences = static fn (self $s): int => \array_sum(\array_map(static fn (string $line): int => \substr_count($line, $text), $s->getLines()));
         $this->waitUntil(
             static fn (self $s): bool => $occurrences($s) === $count,
             fn (): string => \sprintf('The text "%s" is on the screen %d times, not %d.', $text, $occurrences($this), $count),
@@ -409,7 +392,7 @@ final class Session
     {
         $this->settle();
         $this->waitUntil(
-            static fn (self $s): bool => !str_contains($s->lineOrEmpty($number), $text),
+            static fn (self $s): bool => !\str_contains($s->lineOrEmpty($number), $text),
             \sprintf('Line %d contains "%s".', $number, $text),
         );
     }
@@ -417,19 +400,20 @@ final class Session
     /**
      * Checks the value of the one field matching the selector contains the text, or does not.
      */
-    public function assertFieldContains(string $selector, string $text, bool $contains = true): void
+    public function assertFieldContains(string $selector, string $text): void
     {
-        $value = function () use ($selector): string {
-            $element = $this->findOne($selector);
-
-            return $element->value ?? throw new \LogicException(\sprintf('The element "%s" (%s) has no value.', $selector, $element->widgetClass));
-        };
-        if (!$contains) {
-            $this->settle();
-        }
         $this->waitUntil(
-            static fn (): bool => str_contains($value(), $text) === $contains,
-            static fn (): string => \sprintf('The field "%s" has the value "%s", which %s "%s".', $selector, $value(), $contains ? 'does not contain' : 'contains', $text),
+            fn (): bool => \str_contains($this->fieldValue($selector), $text),
+            fn (): string => \sprintf('The field "%s" has the value "%s", which does not contain "%s".', $selector, $this->fieldValue($selector), $text),
+        );
+    }
+
+    public function assertFieldNotContains(string $selector, string $text): void
+    {
+        $this->settle();
+        $this->waitUntil(
+            fn (): bool => !\str_contains($this->fieldValue($selector), $text),
+            fn (): string => \sprintf('The field "%s" has the value "%s", which contains "%s".', $selector, $this->fieldValue($selector), $text),
         );
     }
 
@@ -442,13 +426,15 @@ final class Session
     {
         [$line, $column] = $this->locateOrFail($text);
         $cells = $this->driver->getScreen()->getCells()[$line - 1] ?? [];
-        $width = (new UnicodeString($text))->width(false);
+        $width = new UnicodeString($text)->width(false);
         $styles = [];
-        for ($col = $column - 1; $col < $column - 1 + $width; ++$col) {
+        for ($col = $column - 1; $col < ($column - 1 + $width); ++$col) {
             // Skip the second cell of a wide character, which only repeats the first
-            if ('' !== ($cells[$col]['char'] ?? ' ')) {
-                $styles[] = Style::fromSgr($cells[$col]['style'] ?? '');
+            if ('' === ($cells[$col]['char'] ?? ' ')) {
+                continue;
             }
+
+            $styles[] = Style::fromSgr($cells[$col]['style'] ?? '');
         }
 
         return $styles;
@@ -457,26 +443,48 @@ final class Session
     /**
      * Checks that every cell of the text has the attribute (bold, underlined…), or that none has it.
      */
-    public function assertTextStyle(string $text, string $attribute, bool $has = true): void
+    public function assertTextStyle(string $text, string $attribute): void
     {
-        if (!\in_array($attribute, Style::ATTRIBUTES, true)) {
-            throw new \InvalidArgumentException(\sprintf('Unknown text attribute "%s"; use %s.', $attribute, implode(', ', Style::ATTRIBUTES)));
-        }
+        self::checkAttribute($attribute);
         $this->waitUntil(
-            fn (): bool => [] === array_filter($this->getTextStyles($text), static fn (Style $s): bool => $s->has($attribute) !== $has),
-            fn (): string => \sprintf('The text "%s" is %s%s: %s.', $text, $has ? 'not ' : '', $attribute, $this->describeStyles($text)),
+            fn (): bool => [] === \array_filter($this->getTextStyles($text), static fn (Style $s): bool => !$s->has($attribute)),
+            fn (): string => \sprintf('The text "%s" is not %s: %s.', $text, $attribute, $this->describeStyles($text)),
+        );
+    }
+
+    /**
+     * Checks that no cell of the text has the attribute.
+     */
+    public function assertTextWithoutStyle(string $text, string $attribute): void
+    {
+        self::checkAttribute($attribute);
+        $this->waitUntil(
+            fn (): bool => [] === \array_filter($this->getTextStyles($text), static fn (Style $s): bool => $s->has($attribute)),
+            fn (): string => \sprintf('The text "%s" is %s: %s.', $text, $attribute, $this->describeStyles($text)),
         );
     }
 
     /**
      * Checks the foreground, or the background, color of every cell of the text.
      */
-    public function assertTextColor(string $text, string $color, bool $background = false): void
+    public function assertTextColor(string $text, string $color): void
     {
         $color = Style::name($color);
         $this->waitUntil(
-            fn (): bool => [] === array_filter($this->getTextStyles($text), static fn (Style $s): bool => ($background ? $s->background : $s->foreground) !== $color),
-            fn (): string => \sprintf('The text "%s" does not have the %s color %s: %s.', $text, $background ? 'background' : 'foreground', $color, $this->describeStyles($text)),
+            fn (): bool => [] === \array_filter($this->getTextStyles($text), static fn (Style $s): bool => $s->foreground !== $color),
+            fn (): string => \sprintf('The text "%s" does not have the foreground color %s: %s.', $text, $color, $this->describeStyles($text)),
+        );
+    }
+
+    /**
+     * Checks the background color of every cell of the text.
+     */
+    public function assertTextBackground(string $text, string $color): void
+    {
+        $color = Style::name($color);
+        $this->waitUntil(
+            fn (): bool => [] === \array_filter($this->getTextStyles($text), static fn (Style $s): bool => $s->background !== $color),
+            fn (): string => \sprintf('The text "%s" does not have the background color %s: %s.', $text, $color, $this->describeStyles($text)),
         );
     }
 
@@ -504,7 +512,7 @@ final class Session
     public function assertLineContains(int $number, string $text): void
     {
         $this->waitUntil(
-            static fn (self $s): bool => str_contains($s->lineOrEmpty($number), $text),
+            static fn (self $s): bool => \str_contains($s->lineOrEmpty($number), $text),
             \sprintf('Line %d does not contain "%s".', $number, $text),
         );
     }
@@ -512,7 +520,7 @@ final class Session
     public function assertLineEquals(int $number, string $text): void
     {
         $this->waitUntil(
-            static fn (self $s): bool => $s->lineOrEmpty($number) === rtrim($text),
+            static fn (self $s): bool => $s->lineOrEmpty($number) === \rtrim($text),
             \sprintf('Line %d is not "%s".', $number, $text),
         );
     }
@@ -542,12 +550,18 @@ final class Session
         }
 
         $expected = self::normalize($expected);
-        $rows = explode("\n", $expected);
-        $width = max(array_map(static fn (string $row): int => (new UnicodeString($row))->width(false), $rows));
+        $rows = \explode("\n", $expected);
+        $width = \max(\array_map(static fn (string $row): int => new UnicodeString($row)->width(false), $rows));
 
         $this->waitUntil(
             fn (): bool => $this->getRegion($line, $column, $width, \count($rows)) === $expected,
-            fn (): string => \sprintf("The region at line %d, column %d is not:\n%s\n\nIt is:\n%s", $line, $column, self::number($expected), self::number($this->getRegion($line, $column, $width, \count($rows)))),
+            fn (): string => \sprintf(
+                "The region at line %d, column %d is not:\n%s\n\nIt is:\n%s",
+                $line,
+                $column,
+                self::number($expected),
+                self::number($this->getRegion($line, $column, $width, \count($rows))),
+            ),
         );
     }
 
@@ -558,16 +572,16 @@ final class Session
     {
         $cells = $this->driver->getScreen()->getCells();
         $rows = [];
-        for ($row = $line - 1; $row < $line - 1 + $height; ++$row) {
+        for ($row = $line - 1; $row < ($line - 1 + $height); ++$row) {
             $text = '';
-            for ($col = $column - 1; $col < $column - 1 + $width; ++$col) {
+            for ($col = $column - 1; $col < ($column - 1 + $width); ++$col) {
                 // A wide character fills its first cell and leaves the next one empty
                 $text .= $cells[$row][$col]['char'] ?? ' ';
             }
-            $rows[] = rtrim($text);
+            $rows[] = \rtrim($text);
         }
 
-        return self::normalize(implode("\n", $rows));
+        return self::normalize(\implode("\n", $rows));
     }
 
     /**
@@ -612,11 +626,11 @@ final class Session
     {
         $this->waitUntil(
             fn (): bool => 1 === \count($this->find($selector)),
-            fn (): string => $this->describeMatches($selector, 'one was expected'),
+            fn (): string => $this->describeMatches($selector, expectation: 'one was expected'),
         );
         $found = $this->find($selector);
         if (1 !== \count($found)) {
-            throw new ExpectationException($this->describeMatches($selector, 'one was expected'), $this->dump());
+            throw new ExpectationException($this->describeMatches($selector, expectation: 'one was expected'), $this->dump());
         }
 
         return $found[0];
@@ -689,7 +703,7 @@ final class Session
         $this->waitUntil(
             static fn (): bool => $shown() === $expected,
             fn (): string => null === ($text = $shown())
-                ? $this->describeMatches($selector, 'one was expected')
+                ? $this->describeMatches($selector, expectation: 'one was expected')
                 : \sprintf("The element \"%s\" does not show:\n%s\n\nIt shows:\n%s", $selector, self::number($expected), self::number($text)),
         );
     }
@@ -712,27 +726,27 @@ final class Session
         if (null === $this->snapshotDir) {
             throw new \LogicException('No snapshot directory is configured.');
         }
-        if (!preg_match('/^[\w.\- \/]+$/', $name) || str_contains($name, '..')) {
+        if (!\preg_match('/^[\w.\- \/]+$/', $name) || \str_contains($name, '..')) {
             throw new \InvalidArgumentException(\sprintf('Invalid snapshot name "%s".', $name));
         }
 
         $path = $this->snapshotDir.'/'.$name.'.txt';
-        $update = '' !== (string) getenv('TUINK_UPDATE_SNAPSHOTS') && '0' !== getenv('TUINK_UPDATE_SNAPSHOTS');
+        $update = '' !== (string) \getenv('TUINK_UPDATE_SNAPSHOTS') && '0' !== \getenv('TUINK_UPDATE_SNAPSHOTS');
 
-        if ($update || !is_file($path)) {
-            if (!$update && '' !== (string) getenv('CI')) {
+        if ($update || !\is_file($path)) {
+            if (!$update && '' !== (string) \getenv('CI')) {
                 throw new ExpectationException(\sprintf('The snapshot "%s" does not exist; record it locally and commit it.', $path), $this->dump());
             }
             $this->settle();
-            if (!is_dir(\dirname($path)) && !mkdir(\dirname($path), 0o777, true) && !is_dir(\dirname($path))) {
+            if (!\is_dir(\dirname($path)) && !\mkdir(\dirname($path), permissions: 0o777, recursive: true) && !\is_dir(\dirname($path))) {
                 throw new \RuntimeException(\sprintf('Cannot create the snapshot directory "%s".', \dirname($path)));
             }
-            file_put_contents($path, $this->snapshot()."\n");
+            \file_put_contents($path, $this->snapshot()."\n");
 
             return;
         }
 
-        $this->assertScreenEquals((string) file_get_contents($path));
+        $this->assertScreenEquals((string) \file_get_contents($path));
     }
 
     /**
@@ -742,7 +756,7 @@ final class Session
     {
         $this->waitUntil(
             fn (): bool => !$this->driver->isRunning(),
-            'The application is still running.',
+            message: 'The application is still running.',
         );
 
         if (null === $code) {
@@ -780,7 +794,7 @@ final class Session
         $element = $this->findOne($selector);
         $rect = $element->rect ?? throw new ExpectationException(\sprintf('The element "%s" (%s) is not on the screen, so it cannot be clicked.', $selector, $element->describe()), $this->dump());
 
-        return [$rect->row + intdiv($rect->rows - 1, 2) + 1, $rect->col + intdiv($rect->columns - 1, 2) + 1];
+        return [$rect->row + \intdiv($rect->rows - 1, num2: 2) + 1, $rect->col + \intdiv($rect->columns - 1, num2: 2) + 1];
     }
 
     /**
@@ -791,13 +805,49 @@ final class Session
     private function locate(string $text): ?array
     {
         foreach ($this->getLines() as $i => $line) {
-            $offset = mb_strpos($line, $text);
+            $offset = \mb_strpos($line, $text);
             if (false !== $offset) {
-                return [$i + 1, (new UnicodeString(mb_substr($line, 0, $offset)))->width(false) + 1];
+                return [$i + 1, new UnicodeString(\mb_substr($line, start: 0, length: $offset))->width(false) + 1];
             }
         }
 
         return null;
+    }
+
+    /**
+     * Pumps until the output has been quiet since $lastWrite; with null, quiet time only counts once the screen shows something,
+     * since an application often writes escape sequences (modes, a title) before its first frame.
+     */
+    private function settleFrom(?float $lastWrite): void
+    {
+        $deadline = \microtime(true) + $this->timeout;
+
+        while (\microtime(true) < $deadline) {
+            if ($this->driver->pump(0.005)) {
+                if (null !== $lastWrite || '' !== $this->getScreenText()) {
+                    $lastWrite = \microtime(true);
+                }
+
+                continue;
+            }
+            if (!$this->driver->isRunning() || (null !== $lastWrite && (\microtime(true) - $lastWrite) >= $this->quietPeriod)) {
+                return;
+            }
+        }
+    }
+
+    private function fieldValue(string $selector): string
+    {
+        $element = $this->findOne($selector);
+
+        return $element->value ?? throw new \LogicException(\sprintf('The element "%s" (%s) has no value.', $selector, $element->widgetClass));
+    }
+
+    private static function checkAttribute(string $attribute): void
+    {
+        if (!\in_array($attribute, Style::ATTRIBUTES, strict: true)) {
+            throw new \InvalidArgumentException(\sprintf('Unknown text attribute "%s"; use %s.', $attribute, \implode(', ', Style::ATTRIBUTES)));
+        }
     }
 
     /**
@@ -815,9 +865,9 @@ final class Session
 
     private function describeStyles(string $text): string
     {
-        $styles = array_map(static fn (Style $s): string => $s->describe(), $this->getTextStyles($text));
+        $styles = \array_map(static fn (Style $s): string => $s->describe(), $this->getTextStyles($text));
 
-        return 1 === \count(array_unique($styles)) ? $styles[0] : implode(' | ', $styles);
+        return 1 === \count(\array_unique($styles)) ? $styles[0] : \implode(' | ', $styles);
     }
 
     private function checkOnScreen(int $line, int $column): void
@@ -832,7 +882,7 @@ final class Session
      */
     private function findVisible(string $selector): array
     {
-        return array_values(array_filter($this->find($selector), static fn (Element $e): bool => $e->isVisible()));
+        return \array_values(\array_filter($this->find($selector), static fn (Element $e): bool => $e->isVisible()));
     }
 
     /**
@@ -840,7 +890,7 @@ final class Session
      */
     private function findShowing(string $selector, string $text): array
     {
-        return array_values(array_filter($this->find($selector), static fn (Element $e): bool => str_contains($e->text, $text)));
+        return \array_values(\array_filter($this->find($selector), static fn (Element $e): bool => \str_contains($e->text, $text)));
     }
 
     private function describeMatches(string $selector, string $expectation): string
@@ -858,7 +908,7 @@ final class Session
      */
     private static function describeAll(array $elements): string
     {
-        return implode(', ', array_map(static fn (Element $e): string => $e->describe(), $elements));
+        return \implode(', ', \array_map(static fn (Element $e): string => $e->describe(), $elements));
     }
 
     /**
@@ -866,7 +916,7 @@ final class Session
      */
     private static function showAll(array $elements): string
     {
-        return implode("\n", array_map(
+        return \implode("\n", \array_map(
             static fn (Element $e): string => $e->describe().($e->isVisible() ? ":\n".self::number(self::normalize($e->text)) : ' (not drawn)'),
             $elements,
         ));
@@ -900,23 +950,23 @@ final class Session
 
     private static function normalize(string $text): string
     {
-        $lines = array_map(rtrim(...), explode("\n", str_replace("\r\n", "\n", $text)));
-        while ([] !== $lines && '' === end($lines)) {
-            array_pop($lines);
+        $lines = \array_map(rtrim(...), \explode("\n", \str_replace("\r\n", replace: "\n", subject: $text)));
+        while ([] !== $lines && '' === \end($lines)) {
+            \array_pop($lines);
         }
 
-        return implode("\n", $lines);
+        return \implode("\n", $lines);
     }
 
     private static function number(string $text): string
     {
-        $lines = explode("\n", $text);
+        $lines = \explode("\n", $text);
         $width = \strlen((string) \count($lines));
         $out = [];
         foreach ($lines as $i => $line) {
             $out[] = \sprintf('%'.$width.'d | %s', $i + 1, $line);
         }
 
-        return implode("\n", $out);
+        return \implode("\n", $out);
     }
 }

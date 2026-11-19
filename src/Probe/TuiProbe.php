@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 /*
  * This file is part of the tuink package.
  *
@@ -10,6 +12,7 @@
 namespace Janalis\Tuink\Probe;
 
 use Janalis\Tuink\Selector\WidgetTree;
+use Janalis\Tuink\Util\Warnings;
 use Revolt\EventLoop;
 use Symfony\Component\Tui\Tui;
 
@@ -40,8 +43,7 @@ final class TuiProbe
     private function __construct(
         private readonly Tui $tui,
         private $socket,
-    ) {
-    }
+    ) {}
 
     /**
      * Connects to the driver when TUINK_PROBE names its socket.
@@ -50,16 +52,16 @@ final class TuiProbe
      */
     public static function install(Tui $tui, ?string $path = null): bool
     {
-        $path ??= (string) getenv(self::ENV);
+        $path ??= (string) \getenv(self::ENV);
         if ('' === $path) {
             return false;
         }
 
-        $socket = @stream_socket_client('unix://'.$path, $code, $message, 2.0);
+        [$socket, $warning] = Warnings::capture(static fn () => \stream_socket_client('unix://'.$path, timeout: 2.0));
         if (false === $socket) {
-            throw new \RuntimeException(\sprintf('The tuink probe cannot connect to "%s": %s', $path, $message));
+            throw new \RuntimeException(\sprintf('The tuink probe cannot connect to "%s": %s', $path, $warning ?? 'unknown error'));
         }
-        stream_set_blocking($socket, false);
+        \stream_set_blocking($socket, enable: false);
 
         $probe = new self($tui, $socket);
         $probe->callbackId = EventLoop::onReadable($socket, $probe->read(...));
@@ -71,17 +73,17 @@ final class TuiProbe
 
     private function read(): void
     {
-        $data = fread($this->socket, 65536);
-        if (false === $data || ('' === $data && feof($this->socket))) {
+        $data = \fread($this->socket, length: 65_536);
+        if (false === $data || ('' === $data && \feof($this->socket))) {
             $this->close();
 
             return;
         }
 
         $this->buffer .= $data;
-        while (false !== $end = strpos($this->buffer, "\n")) {
-            $line = substr($this->buffer, 0, $end);
-            $this->buffer = substr($this->buffer, $end + 1);
+        while (false !== ($end = \strpos($this->buffer, needle: "\n"))) {
+            $line = \substr($this->buffer, offset: 0, length: $end);
+            $this->buffer = \substr($this->buffer, $end + 1);
             $this->reply($this->handle($line));
         }
     }
@@ -92,15 +94,12 @@ final class TuiProbe
     private function handle(string $line): array
     {
         try {
-            $request = json_decode($line, true, 8, \JSON_THROW_ON_ERROR);
-            if (!\is_array($request)) {
-                throw new \UnexpectedValueException('A request must be an object.');
-            }
+            $request = self::request(\json_decode($line, associative: true, depth: 8, flags: \JSON_THROW_ON_ERROR));
 
             return match ($request['op'] ?? null) {
                 'tree' => ['xml' => WidgetTree::fromTui($this->tui)->toXml()],
                 'focus' => $this->focus($request['index'] ?? null),
-                default => throw new \UnexpectedValueException(\sprintf('Unknown operation "%s".', get_debug_type($request['op'] ?? null))),
+                default => throw new \UnexpectedValueException(\sprintf('Unknown operation "%s".', \get_debug_type($request['op'] ?? null))),
             };
         } catch (\Throwable $e) {
             return ['error' => $e->getMessage()];
@@ -108,13 +107,25 @@ final class TuiProbe
     }
 
     /**
+     * @return array<array-key, mixed>
+     */
+    private static function request(mixed $decoded): array
+    {
+        if (!\is_array($decoded)) {
+            throw new \UnexpectedValueException('A request must be an object.');
+        }
+
+        return $decoded;
+    }
+
+    /**
      * @return array<string, mixed>
      */
     private function focus(mixed $index): array
     {
-        $widget = \is_int($index) ? (WidgetTree::fromTui($this->tui)->widgets[$index] ?? null) : null;
+        $widget = \is_int($index) ? WidgetTree::fromTui($this->tui)->widgets[$index] ?? null : null;
         if (null === $widget) {
-            throw new \OutOfRangeException(\sprintf('No widget has the index %s.', json_encode($index)));
+            throw new \OutOfRangeException(\sprintf('No widget has the index %s.', \json_encode($index)));
         }
         $this->tui->setFocus($widget);
         $this->tui->requestRender();
@@ -127,11 +138,11 @@ final class TuiProbe
      */
     private function reply(array $response): void
     {
-        $payload = json_encode($response, \JSON_THROW_ON_ERROR | \JSON_INVALID_UTF8_SUBSTITUTE)."\n";
-        stream_set_blocking($this->socket, true);
+        $payload = \json_encode($response, \JSON_THROW_ON_ERROR | \JSON_INVALID_UTF8_SUBSTITUTE)."\n";
+        \stream_set_blocking($this->socket, enable: true);
         try {
             for ($written = 0, $length = \strlen($payload); $written < $length; $written += $chunk) {
-                $chunk = fwrite($this->socket, substr($payload, $written));
+                $chunk = \fwrite($this->socket, \substr($payload, $written));
                 if (false === $chunk || 0 === $chunk) {
                     $this->close();
 
@@ -140,7 +151,7 @@ final class TuiProbe
             }
         } finally {
             if (\is_resource($this->socket)) {
-                stream_set_blocking($this->socket, false);
+                \stream_set_blocking($this->socket, enable: false);
             }
         }
     }
@@ -152,7 +163,7 @@ final class TuiProbe
             $this->callbackId = null;
         }
         if (\is_resource($this->socket)) {
-            fclose($this->socket);
+            \fclose($this->socket);
         }
     }
 }

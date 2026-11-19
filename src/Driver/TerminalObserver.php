@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 /*
  * This file is part of the tuink package.
  *
@@ -27,12 +29,13 @@ final class TerminalObserver
         }
 
         // OSC 0 and OSC 2 set the window title (OSC 1 is the icon name)
-        if (preg_match_all('/\x1b\](?:0|2);([^\x07\x1b]*)(?:\x07|\x1b\\\\)/', $output, $matches)) {
-            $this->title = end($matches[1]);
+        $matches = [];
+        if (\preg_match_all('/\x1b\](?:0|2);([^\x07\x1b]*)(?:\x07|\x1b\\\\)/', $output, $matches)) {
+            $this->title = $matches[1][\count($matches[1]) - 1];
         }
 
-        $rest = (string) preg_replace('/\x1b[\]P_^X][^\x07\x1b]*(?:\x07|\x1b\\\\)/', '', $output);
-        $this->bells += substr_count($rest, "\x07");
+        $rest = (string) \preg_replace('/\x1b[\]P_^X][^\x07\x1b]*(?:\x07|\x1b\\\\)/', replacement: '', subject: $output);
+        $this->bells += \substr_count($rest, needle: "\x07");
     }
 
     public function getBellCount(): int

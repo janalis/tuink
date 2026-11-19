@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 /*
  * This file is part of the tuink package.
  *
@@ -19,6 +21,7 @@ use Janalis\Tuink\Exception\ExpectationException;
 use Janalis\Tuink\Exception\UnsupportedDriverException;
 use Janalis\Tuink\Mouse;
 use Janalis\Tuink\Selector\Element;
+use Janalis\Tuink\Session;
 use Symfony\Component\Tui\Tui;
 
 /**
@@ -155,7 +158,7 @@ class TuiContext implements TuinkAwareContext
             if (!\is_string($text)) {
                 throw new \InvalidArgumentException(\sprintf('Each row needs two cells, a selector and a text; the row of "%s" has more.', $selector));
             }
-            $this->getSession()->fillIn((string) $selector, $text);
+            $this->getSession()->fillIn($selector, $text);
         }
     }
 
@@ -181,9 +184,9 @@ class TuiContext implements TuinkAwareContext
     public function wait(float $seconds): void
     {
         $session = $this->getSession();
-        $deadline = microtime(true) + $seconds;
-        while (microtime(true) < $deadline && $session->getDriver()->isRunning()) {
-            $session->getDriver()->pump(min(0.01, $deadline - microtime(true)));
+        $deadline = \microtime(true) + $seconds;
+        while (\microtime(true) < $deadline && $session->getDriver()->isRunning()) {
+            $session->getDriver()->pump(\min(0.01, $deadline - \microtime(true)));
         }
     }
 
@@ -227,13 +230,13 @@ class TuiContext implements TuinkAwareContext
     #[Then('/^the "([^"]+)" field should (not )?contain "([^"]*)"$/')]
     public function assertFieldContains(string $selector, string $not, string $text): void
     {
-        $this->getSession()->assertFieldContains($selector, $text, '' === $not);
+        '' === $not ? $this->getSession()->assertFieldContains($selector, $text) : $this->getSession()->assertFieldNotContains($selector, $text);
     }
 
     #[Then('/^the text "([^"]+)" should (not )?be (bold|dim|italic|underlined|blinking|reversed|hidden|struck through)$/')]
     public function assertTextStyle(string $text, string $not, string $attribute): void
     {
-        $this->getSession()->assertTextStyle($text, $attribute, '' === $not);
+        '' === $not ? $this->getSession()->assertTextStyle($text, $attribute) : $this->getSession()->assertTextWithoutStyle($text, $attribute);
     }
 
     #[Then('/^the text "([^"]+)" should be (?:colored|coloured) "([^"]+)"$/')]
@@ -245,7 +248,7 @@ class TuiContext implements TuinkAwareContext
     #[Then('/^the text "([^"]+)" should have the background "([^"]+)"$/')]
     public function assertTextBackground(string $text, string $color): void
     {
-        $this->getSession()->assertTextColor($text, $color, true);
+        $this->getSession()->assertTextBackground($text, $color);
     }
 
     #[Then('/^the terminal (?:bell )?should have rung(?: the bell)?(?: (\d+) times?)?$/')]
@@ -340,8 +343,12 @@ class TuiContext implements TuinkAwareContext
             $session->settle();
         }
         $session->waitUntil(
-            static fn (): bool => ([] !== array_filter($session->find($selector), static fn (Element $e): bool => $e->focused)) === $focused,
-            static fn (): string => \sprintf($focused ? 'No element matching "%s" has the focus; %s has it.' : 'An element matching "%s" has the focus: %s.', $selector, implode(', ', array_map(static fn (Element $e): string => $e->describe(), $session->find(':focus'))) ?: 'nothing'),
+            static fn (): bool => ([] !== \array_filter($session->find($selector), static fn (Element $e): bool => $e->focused)) === $focused,
+            static fn (): string => \sprintf(
+                $focused ? 'No element matching "%s" has the focus; %s has it.' : 'An element matching "%s" has the focus: %s.',
+                $selector,
+                self::describeFocus($session),
+            ),
         );
     }
 
@@ -433,6 +440,13 @@ class TuiContext implements TuinkAwareContext
      */
     private static function modifiers(string $modifiers): array
     {
-        return '' === $modifiers ? [] : array_map(trim(...), explode('+', $modifiers));
+        return '' === $modifiers ? [] : \array_map(trim(...), \explode('+', $modifiers));
+    }
+
+    private static function describeFocus(Session $session): string
+    {
+        $focused = \array_map(static fn (Element $e): string => $e->describe(), $session->find(':focus'));
+
+        return [] === $focused ? 'nothing' : \implode(', ', $focused);
     }
 }

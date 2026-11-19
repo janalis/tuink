@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 /*
  * This file is part of the tuink package.
  *
@@ -20,12 +22,13 @@ final class TuinkArgumentResolverTest extends TestCase
     {
         $tuink = $this->tuink();
         $context = new class($tuink, 'x') {
-            public function __construct(public Tuink $tuink, public string $other)
-            {
-            }
+            public function __construct(
+                public Tuink $tuink,
+                public string $other,
+            ) {}
         };
 
-        $arguments = (new TuinkArgumentResolver($tuink))->resolveArguments(new \ReflectionClass($context), ['other' => 'x']);
+        $arguments = new TuinkArgumentResolver($tuink)->resolveArguments(new \ReflectionClass($context), ['other' => 'x']);
 
         $this->assertSame(['other' => 'x', 'tuink' => $tuink], $arguments);
     }
@@ -35,9 +38,9 @@ final class TuinkArgumentResolverTest extends TestCase
         $tuink = $this->tuink();
         $mine = $this->tuink();
         $context = new class($tuink) {
-            public function __construct(public Tuink $tuink)
-            {
-            }
+            public function __construct(
+                public Tuink $tuink,
+            ) {}
         };
         $resolver = new TuinkArgumentResolver($tuink);
 
@@ -47,7 +50,7 @@ final class TuinkArgumentResolverTest extends TestCase
 
     public function testLeavesOtherContextsAlone(): void
     {
-        $this->assertSame([], (new TuinkArgumentResolver($this->tuink()))->resolveArguments(new \ReflectionClass(\stdClass::class), []));
+        $this->assertSame([], new TuinkArgumentResolver($this->tuink())->resolveArguments(new \ReflectionClass(\stdClass::class), []));
     }
 
     private function tuink(): Tuink

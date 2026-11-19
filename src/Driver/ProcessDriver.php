@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 /*
  * This file is part of the tuink package.
  *
@@ -70,7 +72,8 @@ final class ProcessDriver implements DriverInterface, WidgetTreeProvider
 
         // The size is set on the pty before exec, so the application reads it from stty like in a real terminal;
         // the pty is not the child's controlling terminal, so ps cannot name it: the shell writes it down for resize()
-        $this->ttyFile = tempnam(sys_get_temp_dir(), 'tuink-tty-') ?: null;
+        $ttyFile = \tempnam(\sys_get_temp_dir(), prefix: 'tuink-tty-');
+        $this->ttyFile = false === $ttyFile ? null : $ttyFile;
         // The application connects back if its entry point installs TuiProbe
         $this->probe = ProbeServer::listen();
         $this->probeMissing = false;
@@ -101,7 +104,7 @@ final class ProcessDriver implements DriverInterface, WidgetTreeProvider
         } catch (\Throwable $e) {
             $this->probe->close();
             $this->probe = null;
-            throw new DriverException(\sprintf('Cannot start "%s": %s', implode(' ', $this->command), $e->getMessage()), 0, $e);
+            throw new DriverException(\sprintf('Cannot start "%s": %s', \implode(' ', $this->command), $e->getMessage()), 0, $e);
         }
         $this->process = $process;
     }
@@ -115,7 +118,9 @@ final class ProcessDriver implements DriverInterface, WidgetTreeProvider
         $this->process = null;
         $this->input = null;
         if (null !== $this->ttyFile) {
-            @unlink($this->ttyFile);
+            if (\is_file($this->ttyFile)) {
+                \unlink($this->ttyFile);
+            }
             $this->ttyFile = null;
         }
         $this->probe?->close();
@@ -155,16 +160,18 @@ final class ProcessDriver implements DriverInterface, WidgetTreeProvider
         $process = $this->process();
         $pid = $process->getPid() ?? throw new DriverException('Cannot resize: the application is not running.');
 
-        $tty = null === $this->ttyFile ? '' : trim((string) @file_get_contents($this->ttyFile));
-        if (!str_starts_with($tty, '/dev/')) {
+        $tty = null !== $this->ttyFile && \is_file($this->ttyFile) ? \trim((string) \file_get_contents($this->ttyFile)) : '';
+        if (!\str_starts_with($tty, '/dev/')) {
             throw new DriverException(\sprintf('Cannot resize: the terminal of process %d is unknown.', $pid));
         }
 
         $this->pump(0.0);
         $flag = 'Darwin' === \PHP_OS_FAMILY ? '-f' : '-F';
-        exec(\sprintf('stty %s %s cols %d rows %d 2>&1', $flag, escapeshellarg($tty), $columns, $rows), $out, $code);
+        $out = [];
+        $code = 0;
+        \exec(\sprintf('stty %s %s cols %d rows %d 2>&1', $flag, \escapeshellarg($tty), $columns, $rows), $out, $code);
         if (0 !== $code) {
-            throw new DriverException(\sprintf('Cannot resize the terminal of process %d: %s', $pid, implode("\n", $out)));
+            throw new DriverException(\sprintf('Cannot resize the terminal of process %d: %s', $pid, \implode("\n", $out)));
         }
 
         // A resize repaints the whole frame, so a fresh buffer of the new size sees all of it
@@ -174,16 +181,17 @@ final class ProcessDriver implements DriverInterface, WidgetTreeProvider
         $this->screen = new ScreenBuffer($columns, $rows);
         // The pty is not the child's controlling terminal, so the kernel does not signal it
         if (\function_exists('posix_kill') && \defined('SIGWINCH')) {
-            posix_kill($pid, \SIGWINCH);
-        } else {
-            exec('kill -WINCH '.$pid);
+            \posix_kill($pid, \SIGWINCH);
+
+            return;
         }
+        \exec('kill -WINCH '.$pid);
     }
 
     public function pump(float $seconds): bool
     {
         $process = $this->process();
-        $deadline = microtime(true) + max(0.0, $seconds);
+        $deadline = \microtime(true) + \max(0.0, $seconds);
         $wrote = false;
 
         do {
@@ -199,11 +207,11 @@ final class ProcessDriver implements DriverInterface, WidgetTreeProvider
             if (!$process->isRunning()) {
                 break;
             }
-            $left = $deadline - microtime(true);
+            $left = $deadline - \microtime(true);
             if ($left > 0) {
-                usleep((int) (min($left, 0.005) * 1e6));
+                \usleep(\max(0, (int) (\min($left, 0.005) * 1e6)));
             }
-        } while (microtime(true) < $deadline);
+        } while (\microtime(true) < $deadline);
 
         return $wrote;
     }
@@ -220,12 +228,7 @@ final class ProcessDriver implements DriverInterface, WidgetTreeProvider
 
     public function getWidgetTree(): WidgetTree
     {
-        $xml = $this->probeRequest(['op' => 'tree'])['xml'] ?? null;
-        if (!\is_string($xml)) {
-            throw new DriverException('The tuink probe sent no widget tree.');
-        }
-
-        return WidgetTree::fromXml($xml);
+        return WidgetTree::fromXml(self::xml($this->probeRequest(['op' => 'tree'])));
     }
 
     public function focusWidget(int $index): void
@@ -242,15 +245,30 @@ final class ProcessDriver implements DriverInterface, WidgetTreeProvider
     }
 
     /**
+     * @param array<array-key, mixed> $response
+     */
+    private static function xml(array $response): string
+    {
+        if (!\is_string($response['xml'] ?? null)) {
+            throw new DriverException('The tuink probe sent no widget tree.');
+        }
+
+        return $response['xml'];
+    }
+
+    /**
      * @param array<string, mixed> $request
      *
-     * @return array<string, mixed>
+     * @return array<array-key, mixed>
      */
     private function probeRequest(array $request): array
     {
         $probe = $this->probe ?? throw new DriverException('The application is not started.');
         if ($this->probeMissing) {
-            throw new UnsupportedDriverException(\sprintf('The application did not connect to the tuink probe. CSS selectors on the process driver need it to call %s::install($tui) before run(); or tag the scenario @in_process.', TuiProbe::class));
+            throw new UnsupportedDriverException(\sprintf(
+                'The application did not connect to the tuink probe. CSS selectors on the process driver need it to call %s::install($tui) before run(); or tag the scenario @in_process.',
+                TuiProbe::class,
+            ));
         }
 
         try {

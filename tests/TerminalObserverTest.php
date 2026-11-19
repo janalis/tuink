@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 /*
  * This file is part of the tuink package.
  *
@@ -40,6 +42,7 @@ final class TerminalObserverTest extends TestCase
         $this->assertSame('second', $observer->getTitle());
 
         $observer->observe("\x1b]1;icon name\x07");
-        $this->assertSame('second', $observer->getTitle(), 'OSC 1 names the icon, not the window.');
+        // OSC 1 names the icon, not the window.
+        $this->assertSame('second', $observer->getTitle());
     }
 }

@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 /*
  * This file is part of the tuink package.
  *
@@ -30,49 +32,68 @@ final class Style
         public readonly array $attributes = [],
         public readonly ?string $foreground = null,
         public readonly ?string $background = null,
-    ) {
-    }
+    ) {}
 
     public static function fromSgr(string $sgr): self
     {
-        if (!preg_match('/^\x1b\[([0-9;:]*)m$/', $sgr, $match) || '' === $match[1]) {
+        $match = [];
+        if (!\preg_match('/^\x1b\[([0-9;:]*)m$/', $sgr, $match) || '' === $match[1]) {
             return new self();
         }
 
-        $codes = explode(';', $match[1]);
+        $codes = \explode(';', $match[1]);
         $attributes = [];
-        $foreground = $background = null;
+        $foreground = null;
+        $background = null;
         for ($i = 0, $count = \count($codes); $i < $count; ++$i) {
             // Underline variants are written 4:3 (curly) and the like
-            $code = (int) explode(':', $codes[$i])[0];
-            if (isset(self::CODES[$code])) {
+            $code = (int) \explode(':', $codes[$i])[0];
+            if (\array_key_exists($code, self::CODES)) {
                 $attributes[self::CODES[$code]] = true;
-            } elseif ($code >= 30 && $code <= 37) {
-                $foreground = self::NAMES[$code - 30];
-            } elseif ($code >= 90 && $code <= 97) {
-                $foreground = 'bright-'.self::NAMES[$code - 90];
-            } elseif ($code >= 40 && $code <= 47) {
-                $background = self::NAMES[$code - 40];
-            } elseif ($code >= 100 && $code <= 107) {
-                $background = 'bright-'.self::NAMES[$code - 100];
-            } elseif (38 === $code || 48 === $code || 58 === $code) {
-                $color = null;
-                if ('5' === ($codes[$i + 1] ?? null)) {
-                    $color = self::name((string) (int) ($codes[$i + 2] ?? 0));
-                    $i += 2;
-                } elseif ('2' === ($codes[$i + 1] ?? null)) {
-                    $color = \sprintf('#%02x%02x%02x', (int) ($codes[$i + 2] ?? 0), (int) ($codes[$i + 3] ?? 0), (int) ($codes[$i + 4] ?? 0));
-                    $i += 4;
-                }
-                if (38 === $code) {
-                    $foreground = $color;
-                } elseif (48 === $code) {
-                    $background = $color;
-                }
+
+                continue;
             }
+            if (38 === $code || 48 === $code || 58 === $code) {
+                [$color, $used] = self::extendedColor($codes, $i + 1);
+                $i += $used;
+                $foreground = 38 === $code ? $color : $foreground;
+                $background = 48 === $code ? $color : $background;
+
+                continue;
+            }
+            $foreground = self::basicColor($code, normal: 30, bright: 90) ?? $foreground;
+            $background = self::basicColor($code, normal: 40, bright: 100) ?? $background;
         }
 
-        return new self(array_keys($attributes), $foreground, $background);
+        return new self(\array_keys($attributes), $foreground, $background);
+    }
+
+    /**
+     * The color of a basic SGR code: $normal to $normal + 7, or the bright $bright to $bright + 7.
+     */
+    private static function basicColor(int $code, int $normal, int $bright): ?string
+    {
+        return match (true) {
+            $code >= $normal && $code <= ($normal + 7) => self::NAMES[$code - $normal],
+            $code >= $bright && $code <= ($bright + 7) => 'bright-'.self::NAMES[$code - $bright],
+            default => null,
+        };
+    }
+
+    /**
+     * The color after 38, 48 or 58: 5;n for the palette, 2;r;g;b for true color.
+     *
+     * @param list<string> $codes
+     *
+     * @return array{?string, int} The color, and how many codes it used
+     */
+    private static function extendedColor(array $codes, int $at): array
+    {
+        return match ($codes[$at] ?? null) {
+            '5' => [self::name((string) (int) ($codes[$at + 1] ?? 0)), 2],
+            '2' => [\sprintf('#%02x%02x%02x', (int) ($codes[$at + 1] ?? 0), (int) ($codes[$at + 2] ?? 0), (int) ($codes[$at + 3] ?? 0)), 4],
+            default => [null, 0],
+        };
     }
 
     /**
@@ -80,14 +101,15 @@ final class Style
      */
     public static function name(string $color): string
     {
-        $color = strtolower(trim($color));
-        if (preg_match('/^#[0-9a-f]{6}$/', $color)) {
+        $color = \strtolower(\trim($color));
+        if (\preg_match('/^#[0-9a-f]{6}$/', $color)) {
             return $color;
         }
-        if (preg_match('/^#([0-9a-f])([0-9a-f])([0-9a-f])$/', $color, $m)) {
+        $m = [];
+        if (\preg_match('/^#([0-9a-f])([0-9a-f])([0-9a-f])$/', $color, $m)) {
             return '#'.$m[1].$m[1].$m[2].$m[2].$m[3].$m[3];
         }
-        if (ctype_digit($color)) {
+        if (\ctype_digit($color)) {
             $index = (int) $color;
             if ($index < 8) {
                 return self::NAMES[$index];
@@ -98,9 +120,9 @@ final class Style
 
             return (string) $index;
         }
-        $color = (string) preg_replace('/[\s_]+/', '-', $color);
-        $base = str_starts_with($color, 'bright-') ? substr($color, 7) : $color;
-        if (!\in_array($base, self::NAMES, true)) {
+        $color = (string) \preg_replace('/[\s_]+/', replacement: '-', subject: $color);
+        $base = \str_starts_with($color, 'bright-') ? \substr($color, offset: 7) : $color;
+        if (!\in_array($base, self::NAMES, strict: true)) {
             throw new \InvalidArgumentException(\sprintf('Unknown color "%s": use a name like "red" or "bright red", a palette index, or "#rrggbb".', $color));
         }
 
@@ -109,7 +131,7 @@ final class Style
 
     public function has(string $attribute): bool
     {
-        return \in_array($attribute, $this->attributes, true);
+        return \in_array($attribute, $this->attributes, strict: true);
     }
 
     public function describe(): string
@@ -122,6 +144,6 @@ final class Style
             $parts[] = 'on '.$this->background;
         }
 
-        return [] === $parts ? 'plain' : implode(', ', $parts);
+        return [] === $parts ? 'plain' : \implode(', ', $parts);
     }
 }

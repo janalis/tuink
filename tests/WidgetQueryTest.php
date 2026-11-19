@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 /*
  * This file is part of the tuink package.
  *
@@ -84,7 +86,7 @@ final class WidgetQueryTest extends TestCase
     {
         $found = $this->demo()->find($selector);
 
-        $this->assertSame($expected, array_map(static fn (Element $e): string => $e->describe(), $found));
+        $this->assertSame($expected, \array_map(static fn (Element $e): string => $e->describe(), $found));
     }
 
     public function testElementsCarryWhatTheyShow(): void
@@ -95,15 +97,15 @@ final class WidgetQueryTest extends TestCase
         [$greeting] = $session->find('#greeting');
         $this->assertTrue($greeting->isVisible());
         $this->assertSame('Hello, Ada!', $greeting->text);
-        $this->assertSame(['input#name'], array_map(static fn (Element $e): string => $e->describe(), $session->find('input[value="Ada"]')));
-        $this->assertSame(['select-list#color'], array_map(static fn (Element $e): string => $e->describe(), $session->find('select-list:focus')));
+        $this->assertSame(['input#name'], \array_map(static fn (Element $e): string => $e->describe(), $session->find('input[value="Ada"]')));
+        $this->assertSame(['select-list#color'], \array_map(static fn (Element $e): string => $e->describe(), $session->find('select-list:focus')));
         $this->assertSame("→ Red\n  Green\n  Blue", $session->find('#color')[0]->text);
     }
 
     public function testInvalidSelector(): void
     {
         $this->expectException(\InvalidArgumentException::class);
-        $this->expectExceptionMessage('Invalid CSS selector "input[":');
+        $this->expectExceptionMessageIsOrContains('Invalid CSS selector "input[":');
 
         $this->demo()->find('input[');
     }
@@ -111,7 +113,7 @@ final class WidgetQueryTest extends TestCase
     public function testUnknownPseudoClass(): void
     {
         $this->expectException(\InvalidArgumentException::class);
-        $this->expectExceptionMessage('Pseudo-class "hover" not supported.');
+        $this->expectExceptionMessageIsOrContains('Pseudo-class "hover" not supported.');
 
         $this->demo()->find('input:hover');
     }
@@ -119,7 +121,7 @@ final class WidgetQueryTest extends TestCase
     public function testTheTreeSurvivesXml(): void
     {
         $terminal = new VirtualTerminal(40, 12);
-        $tui = (new DemoApp($terminal))->tui;
+        $tui = new DemoApp($terminal)->tui;
         $tui->start();
         $tui->processRender();
 
@@ -129,16 +131,19 @@ final class WidgetQueryTest extends TestCase
 
         $this->assertSame($tree->toXml(), $copy->toXml());
         $this->assertCount(\count($tree->widgets), $copy->document->getElementsByTagName('*'));
-        $this->assertSame([], $copy->widgets, 'Widgets do not travel.');
+        // Widgets do not travel.
+        $this->assertSame([], $copy->widgets);
     }
 
     public function testTheRootComesFromGetRootWhenTuiHasIt(): void
     {
-        $other = (new ContainerWidget())->setId('elsewhere');
-        $other->add((new TextWidget('x'))->setId('inside'));
+        $other = new ContainerWidget()->setId('elsewhere');
+        $other->add(new TextWidget('x')->setId('inside'));
         $tui = new class($other, new VirtualTerminal()) extends Tui {
-            public function __construct(private readonly ContainerWidget $other, VirtualTerminal $terminal)
-            {
+            public function __construct(
+                private readonly ContainerWidget $other,
+                VirtualTerminal $terminal,
+            ) {
                 parent::__construct(terminal: $terminal);
             }
 
@@ -164,30 +169,36 @@ final class WidgetQueryTest extends TestCase
      */
     public static function failures(): iterable
     {
-        yield 'see in, nothing matches' => [static fn (Session $s) => $s->assertSeeIn('editor', 'x'), 'The text "x" was not found in "editor": no element matches it.'];
-        yield 'see in, wrong text' => [static fn (Session $s) => $s->assertSeeIn('#status', 'Goodbye'), "The text \"Goodbye\" was not found in \"#status\". It shows:\ntext#status:\n1 | Status: loading"];
-        yield 'see in, not drawn' => [static fn (Session $s) => $s->assertSeeIn('#greeting', 'Hello'), "It shows:\ntext#greeting.message (not drawn)"];
-        yield 'not see in' => [static fn (Session $s) => $s->assertNotSeeIn('#color', 'Red'), "The text \"Red\" was found in \"#color\":\nselect-list#color:\n1 | → Red"];
-        yield 'count' => [static fn (Session $s) => $s->assertElementCount('.message', 3), '2 elements match ".message", not 3: text#greeting.message, text#choice.message.'];
-        yield 'count none' => [static fn (Session $s) => $s->assertElementCount('editor', 1), 'No element matches "editor", not 1.'];
+        yield 'see in, nothing matches' => [static fn (Session $s) => $s->assertSeeIn('editor', text: 'x'), 'The text "x" was not found in "editor": no element matches it.'];
+        yield 'see in, wrong text' => [
+            static fn (Session $s) => $s->assertSeeIn('#status', text: 'Goodbye'),
+            "The text \"Goodbye\" was not found in \"#status\". It shows:\ntext#status:\n1 | Status: loading",
+        ];
+        yield 'see in, not drawn' => [static fn (Session $s) => $s->assertSeeIn('#greeting', text: 'Hello'), "It shows:\ntext#greeting.message (not drawn)"];
+        yield 'not see in' => [static fn (Session $s) => $s->assertNotSeeIn('#color', text: 'Red'), "The text \"Red\" was found in \"#color\":\nselect-list#color:\n1 | → Red"];
+        yield 'count' => [static fn (Session $s) => $s->assertElementCount('.message', count: 3), '2 elements match ".message", not 3: text#greeting.message, text#choice.message.'];
+        yield 'count none' => [static fn (Session $s) => $s->assertElementCount('editor', count: 1), 'No element matches "editor", not 1.'];
         yield 'one, none' => [static fn (Session $s) => $s->findOne('editor'), 'No element matches "editor", one was expected.'];
         yield 'one, many' => [static fn (Session $s) => $s->findOne('.message'), '2 elements match ".message", one was expected: text#greeting.message, text#choice.message.'];
         yield 'visible' => [static fn (Session $s) => $s->assertElementVisible('#greeting'), 'No element matching "#greeting" is on the screen.'];
         yield 'not visible' => [static fn (Session $s) => $s->assertElementNotVisible('input'), 'Elements matching "input" are on the screen: input#name.'];
-        yield 'shows, many' => [static fn (Session $s) => $s->assertElementShows('.message', 'x'), '2 elements match ".message", one was expected: text#greeting.message, text#choice.message.'];
-        yield 'field contains' => [static fn (Session $s) => $s->assertFieldContains('#name', 'Ada'), 'The field "#name" has the value "", which does not contain "Ada".'];
-        yield 'see count' => [static fn (Session $s) => $s->assertSeeCount('Blue', 3), 'The text "Blue" is on the screen 1 times, not 3.'];
+        yield 'shows, many' => [
+            static fn (Session $s) => $s->assertElementShows('.message', expected: 'x'),
+            '2 elements match ".message", one was expected: text#greeting.message, text#choice.message.',
+        ];
+        yield 'field contains' => [static fn (Session $s) => $s->assertFieldContains('#name', text: 'Ada'), 'The field "#name" has the value "", which does not contain "Ada".'];
+        yield 'see count' => [static fn (Session $s) => $s->assertSeeCount('Blue', count: 3), 'The text "Blue" is on the screen 1 times, not 3.'];
         yield 'not see match' => [static fn (Session $s) => $s->assertNotSeeMatch('/Size: \\d+/'), 'Text on the screen matches /Size: \\d+/.'];
-        yield 'line not contains' => [static fn (Session $s) => $s->assertLineNotContains(1, 'demo'), 'Line 1 contains "demo".'];
-        yield 'style' => [static fn (Session $s) => $s->assertTextStyle('Tuink demo', 'italic'), 'The text "Tuink demo" is not italic: bold, #5f87ff.'];
-        yield 'style absent' => [static fn (Session $s) => $s->assertTextStyle('Tuink demo', 'bold', false), 'The text "Tuink demo" is bold: bold, #5f87ff.'];
-        yield 'color' => [static fn (Session $s) => $s->assertTextColor('Status', 'red'), 'The text "Status" does not have the foreground color red: plain.'];
-        yield 'background' => [static fn (Session $s) => $s->assertTextColor('Tuink', '#000', true), 'The text "Tuink" does not have the background color #000000: bold, #5f87ff.'];
+        yield 'line not contains' => [static fn (Session $s) => $s->assertLineNotContains(1, text: 'demo'), 'Line 1 contains "demo".'];
+        yield 'style' => [static fn (Session $s) => $s->assertTextStyle('Tuink demo', attribute: 'italic'), 'The text "Tuink demo" is not italic: bold, #5f87ff.'];
+        yield 'style absent' => [static fn (Session $s) => $s->assertTextWithoutStyle('Tuink demo', attribute: 'bold'), 'The text "Tuink demo" is bold: bold, #5f87ff.'];
+        yield 'color' => [static fn (Session $s) => $s->assertTextColor('Status', color: 'red'), 'The text "Status" does not have the foreground color red: plain.'];
+        yield 'background' => [static fn (Session $s) => $s->assertTextBackground('Tuink', color: '#000'), 'The text "Tuink" does not have the background color #000000: bold, #5f87ff.'];
         yield 'bell' => [static fn (Session $s) => $s->assertBell(), 'The bell rang 0 times.'];
         yield 'bell count' => [static fn (Session $s) => $s->assertBell(2), 'The bell rang 0 times, not 2.'];
         yield 'title' => [static fn (Session $s) => $s->assertTitle('Other'), 'The title is "Tuink demo", not "Other".'];
-        yield 'select missing' => [static fn (Session $s) => $s->selectOption('#color', 'Purple'), 'The list "#color" has no item "Purple"; its items are "Red", "Green", "Blue".'];
-        yield 'shows, wrong' => [static fn (Session $s) => $s->assertElementShows('#size', 'Size: 1x1'), "The element \"#size\" does not show:\n1 | Size: 1x1\n\nIt shows:\n1 | Size: 80x24"];
+        yield 'select missing' => [static fn (Session $s) => $s->selectOption('#color', label: 'Purple'), 'The list "#color" has no item "Purple"; its items are "Red", "Green", "Blue".'];
+        yield 'shows, wrong' => [static fn (Session $s) => $s->assertElementShows('#size', expected: 'Size: 1x1'), "The element \"#size\" does not show:\n1 | Size: 1x1\n\nIt shows:\n1 | Size: 80x24"];
     }
 
     /**
@@ -212,28 +223,29 @@ final class WidgetQueryTest extends TestCase
     public function testAFieldWithoutAValue(): void
     {
         $this->expectException(\LogicException::class);
-        $this->expectExceptionMessage('The element "#color" (Symfony\Component\Tui\Widget\SelectListWidget) has no value.');
+        $this->expectExceptionMessageIsOrContains('The element "#color" (Symfony\Component\Tui\Widget\SelectListWidget) has no value.');
 
-        $this->demo(timeout: 0.05)->assertFieldContains('#color', 'x');
+        $this->demo(timeout: 0.05)->assertFieldContains(selector: '#color', text: 'x');
     }
 
     public function testPassingAssertions(): void
     {
         $session = $this->demo();
-        $session->assertSeeIn('#form', 'Name:');
-        $session->assertNotSeeIn('#status', 'ready');
-        $session->assertElementCount('#form > *', 3);
+        $session->assertSeeIn('#form', text: 'Name:');
+        $session->assertNotSeeIn('#status', text: 'ready');
+        $session->assertElementCount('#form > *', count: 3);
         $session->assertElementVisible('text.title');
         $session->assertElementNotVisible('.message');
-        $session->assertElementShows('text.title', 'Tuink demo');
+        $session->assertElementShows('text.title', expected: 'Tuink demo');
 
-        $this->assertSame('name', $session->findOne('input')->widget?->getId(), 'In process, elements carry their widget.');
+        // In process, elements carry their widget.
+        $this->assertSame('name', $session->findOne('input')->widget?->getId());
     }
 
     private function demo(float $timeout = 1.0): Session
     {
         $this->session = new Session(
-            new InProcessDriver(static fn (VirtualTerminal $terminal): Tui => (new DemoApp($terminal))->tui),
+            new InProcessDriver(static fn (VirtualTerminal $terminal): Tui => new DemoApp($terminal)->tui),
             timeout: $timeout,
             quietPeriod: 0.02,
         );

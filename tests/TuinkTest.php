@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 /*
  * This file is part of the tuink package.
  *
@@ -35,7 +37,8 @@ final class TuinkTest extends TestCase
 
         $this->assertSame($session, $tuink->getSession());
         $tuink->useDriver('in_process');
-        $this->assertSame($session, $tuink->getSession(), 'Using the current driver keeps the session.');
+        // Using the current driver keeps the session.
+        $this->assertSame($session, $tuink->getSession());
 
         $tuink->reset();
         $this->assertNotSame($session, $tuink->getSession());
@@ -43,19 +46,22 @@ final class TuinkTest extends TestCase
 
     public function testTheFactoryFileIsRequiredOnce(): void
     {
-        $file = sys_get_temp_dir().'/tuink-factory-'.bin2hex(random_bytes(4)).'.php';
-        $function = 'tuink_factory_'.bin2hex(random_bytes(4));
-        file_put_contents($file, "<?php\nfunction {$function}() {}\nreturn static fn (\\Symfony\\Component\\Tui\\Terminal\\VirtualTerminal \$t) => new \\Symfony\\Component\\Tui\\Tui(terminal: \$t);\n");
+        $file = \sys_get_temp_dir().'/tuink-factory-'.\bin2hex(\random_bytes(4)).'.php';
+        $function = 'tuink_factory_'.\bin2hex(\random_bytes(4));
+        \file_put_contents(
+            $file,
+            "<?php\nfunction {$function}() {}\nreturn static fn (\\Symfony\\Component\\Tui\\Terminal\\VirtualTerminal \$t) => new \\Symfony\\Component\\Tui\\Tui(terminal: \$t);\n",
+        );
 
         try {
-            $tuink = $this->tuink(['in_process' => ['factory' => $file]]);
+            $tuink = $this->tuink(factory: $file);
             for ($i = 0; $i < 2; ++$i) {
                 $tuink->getSession()->start();
                 $tuink->reset();
             }
             $this->assertTrue(\function_exists($function));
         } finally {
-            unlink($file);
+            \unlink($file);
         }
     }
 
@@ -71,33 +77,33 @@ final class TuinkTest extends TestCase
     public function testUnknownDriver(): void
     {
         $this->expectException(\InvalidArgumentException::class);
-        $this->expectExceptionMessage('The driver "ssh" is not configured; configured drivers: "in_process", "process".');
+        $this->expectExceptionMessageIsOrContains('The driver "ssh" is not configured; configured drivers: "in_process", "process".');
 
         $this->tuink()->useDriver('ssh');
     }
 
     public function testSizeComesFromConfig(): void
     {
-        $session = $this->tuink(['columns' => 100, 'rows' => 30])->getSession();
+        $session = $this->tuink(columns: 100, rows: 30)->getSession();
 
         $this->assertSame(100, $session->getColumns());
         $this->assertSame(30, $session->getRows());
     }
 
-    /**
-     * @param array<string, mixed> $config
-     */
-    private function tuink(array $config = []): Tuink
+    private function tuink(int $columns = 80, int $rows = 24, string $factory = 'example/factory.php'): Tuink
     {
-        return Tuink::fromConfig($config + [
-            'default_driver' => 'in_process',
-            'columns' => 80,
-            'rows' => 24,
-            'timeout' => 1.0,
-            'quiet_period' => null,
-            'snapshots' => null,
-            'in_process' => ['factory' => 'example/factory.php'],
-            'process' => ['command' => ['php', 'example/bin/demo'], 'cwd' => null, 'env' => []],
-        ], \dirname(__DIR__));
+        return Tuink::fromConfig(
+            [
+                'default_driver' => 'in_process',
+                'columns' => $columns,
+                'rows' => $rows,
+                'timeout' => 1.0,
+                'quiet_period' => null,
+                'snapshots' => null,
+                'in_process' => ['factory' => $factory],
+                'process' => ['command' => ['php', 'example/bin/demo'], 'cwd' => null, 'env' => []],
+            ],
+            \dirname(__DIR__),
+        );
     }
 }

@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 /*
  * This file is part of the tuink package.
  *
@@ -59,16 +61,29 @@ final class InProcessDriver implements DriverInterface, WidgetTreeProvider
      */
     public static function loadFactory(string $path): callable
     {
-        if (!is_file($path)) {
+        if (!\is_file($path)) {
             throw new DriverException(\sprintf('The in-process factory file "%s" does not exist.', $path));
         }
 
-        $factory = (static fn (string $path): mixed => require $path)($path);
+        return self::callableFrom((static fn (string $path): mixed => require $path)($path), $path);
+    }
+
+    private static function callableFrom(mixed $factory, string $path): callable
+    {
         if (!\is_callable($factory)) {
-            throw new DriverException(\sprintf('The in-process factory file "%s" must return a callable(VirtualTerminal): Tui, "%s" returned.', $path, get_debug_type($factory)));
+            throw new DriverException(\sprintf('The in-process factory file "%s" must return a callable(VirtualTerminal): Tui, "%s" returned.', $path, \get_debug_type($factory)));
         }
 
         return $factory;
+    }
+
+    private static function tuiFrom(mixed $tui): Tui
+    {
+        if (!$tui instanceof Tui) {
+            throw new DriverException(\sprintf('The in-process factory must return a "%s", "%s" returned.', Tui::class, \get_debug_type($tui)));
+        }
+
+        return $tui;
     }
 
     public function getName(): string
@@ -82,12 +97,9 @@ final class InProcessDriver implements DriverInterface, WidgetTreeProvider
             throw new DriverException('The application is already started.');
         }
 
-        $this->foreignCallbacks = array_fill_keys(EventLoop::getIdentifiers(), true);
+        $this->foreignCallbacks = \array_fill_keys(EventLoop::getIdentifiers(), value: true);
         $terminal = new VirtualTerminal($columns, $rows);
-        $tui = ($this->factory)($terminal);
-        if (!$tui instanceof Tui) {
-            throw new DriverException(\sprintf('The in-process factory must return a "%s", "%s" returned.', Tui::class, get_debug_type($tui)));
-        }
+        $tui = self::tuiFrom(($this->factory)($terminal));
         if ($tui->getTerminal() !== $terminal) {
             throw new DriverException('The in-process factory must build the Tui on the VirtualTerminal it receives.');
         }
@@ -108,9 +120,11 @@ final class InProcessDriver implements DriverInterface, WidgetTreeProvider
         // The loop is shared by the whole run: timers the application left behind must not fire in the next scenario
         if (null !== $this->tui) {
             foreach (EventLoop::getIdentifiers() as $id) {
-                if (!isset($this->foreignCallbacks[$id])) {
-                    EventLoop::cancel($id);
+                if (\array_key_exists($id, $this->foreignCallbacks)) {
+                    continue;
                 }
+
+                EventLoop::cancel($id);
             }
         }
 
@@ -154,7 +168,7 @@ final class InProcessDriver implements DriverInterface, WidgetTreeProvider
             $tui->tick();
         }
 
-        self::runLoop(max(0.0, $seconds));
+        self::runLoop(\max(0.0, $seconds));
 
         if ($tui->isRunning()) {
             $tui->tick();
@@ -225,7 +239,7 @@ final class InProcessDriver implements DriverInterface, WidgetTreeProvider
     private static function runLoop(float $seconds): void
     {
         $suspension = EventLoop::getSuspension();
-        $id = EventLoop::delay($seconds, static fn () => $suspension->resume());
+        $id = EventLoop::delay($seconds, $suspension->resume(...));
         try {
             $suspension->suspend();
         } finally {

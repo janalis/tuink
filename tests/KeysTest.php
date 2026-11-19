@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 /*
  * This file is part of the tuink package.
  *
@@ -76,13 +78,13 @@ final class KeysTest extends TestCase
     #[DataProvider('parsedKeys')]
     public function testTheTuiParsesTheBytesAsTheKey(string $name, string $key): void
     {
-        $this->assertTrue((new KeyParser())->matches(Keys::key($name), $key), \sprintf('"%s" is not read as "%s".', $name, $key));
+        $this->assertTrue(new KeyParser()->matches(Keys::key($name), $key), \sprintf('"%s" is not read as "%s".', $name, $key));
     }
 
     public function testUnknownKey(): void
     {
         $this->expectException(\InvalidArgumentException::class);
-        $this->expectExceptionMessage('Unknown key "Hyper"');
+        $this->expectExceptionMessageIsOrContains('Unknown key "Hyper"');
 
         Keys::key('Hyper');
     }
@@ -90,7 +92,7 @@ final class KeysTest extends TestCase
     public function testUnknownModifier(): void
     {
         $this->expectException(\InvalidArgumentException::class);
-        $this->expectExceptionMessage('Unknown modifier "Super"');
+        $this->expectExceptionMessageIsOrContains('Unknown modifier "Super"');
 
         Keys::key('Super+S');
     }
@@ -127,6 +129,6 @@ final class KeysTest extends TestCase
     public function testCombinationsWithoutALegacyEncoding(string $name, string $bytes, string $key): void
     {
         $this->assertSame($bytes, Keys::key($name));
-        $this->assertTrue((new KeyParser())->matches($bytes, $key), \sprintf('"%s" is not read as "%s".', $name, $key));
+        $this->assertTrue(new KeyParser()->matches($bytes, $key), \sprintf('"%s" is not read as "%s".', $name, $key));
     }
 }

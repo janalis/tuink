@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 /*
  * This file is part of the tuink package.
  *
@@ -19,9 +21,15 @@ $tuink = [
     'process' => ['command' => ['php', 'example/bin/demo']],
 ];
 
-return (new Config())
-    ->withProfile((new Profile('default'))
-        ->withSuite((new Suite('default'))->withPaths('%paths.base%/features')->withContexts(TuiContext::class, InjectedContext::class))
-        ->withExtension(new Extension(TuinkExtension::class, $tuink)))
-    ->withProfile((new Profile('process'))
+return new Config()
+    ->withProfile(
+        new Profile('default')
+            ->withSuite(
+                new Suite('default')
+                    ->withPaths('%paths.base%/features')
+                    ->withContexts(TuiContext::class, InjectedContext::class),
+            )
+            ->withExtension(new Extension(TuinkExtension::class, $tuink)),
+    )
+    ->withProfile(new Profile('process')
         ->withExtension(new Extension(TuinkExtension::class, ['default_driver' => 'process'] + $tuink)));

@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 /*
  * This file is part of the tuink package.
  *
@@ -18,16 +20,16 @@ final class TuiProbeTest extends TestCase
 {
     public function testDoesNothingOutsideTheProcessDriver(): void
     {
-        putenv(TuiProbe::ENV);
+        \putenv(TuiProbe::ENV);
 
-        $this->assertFalse(TuiProbe::install((new DemoApp(new VirtualTerminal()))->tui));
+        $this->assertFalse(TuiProbe::install(new DemoApp(new VirtualTerminal())->tui));
     }
 
     public function testFailsLoudlyWhenTheSocketIsGone(): void
     {
         $this->expectException(\RuntimeException::class);
-        $this->expectExceptionMessage('The tuink probe cannot connect to');
+        $this->expectExceptionMessageIsOrContains('The tuink probe cannot connect to');
 
-        TuiProbe::install((new DemoApp(new VirtualTerminal()))->tui, sys_get_temp_dir().'/tuink-missing-'.bin2hex(random_bytes(4)).'.sock');
+        TuiProbe::install(new DemoApp(new VirtualTerminal())->tui, \sys_get_temp_dir().'/tuink-missing-'.\bin2hex(\random_bytes(4)).'.sock');
     }
 }

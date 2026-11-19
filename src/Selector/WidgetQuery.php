@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 /*
  * This file is part of the tuink package.
  *
@@ -29,8 +31,7 @@ final class WidgetQuery
      */
     public function __construct(
         private readonly \Closure $textOf,
-    ) {
-    }
+    ) {}
 
     /**
      * @return list<Element> The matching widgets, in tree order
@@ -46,10 +47,16 @@ final class WidgetQuery
         $document = $tree->document;
         $finder = new \DOMXPath($document);
         $elements = [];
-        foreach ($finder->query('//*') ?: [] as $node) {
-            if ($node instanceof \DOMElement) {
-                $elements[(int) $node->getAttribute(WidgetTree::INDEX)] = $this->element($tree, $node);
+        $all = $finder->query('//*');
+        if (false === $all) {
+            throw new \LogicException('Cannot list the widgets.');
+        }
+        foreach ($all as $node) {
+            if (!$node instanceof \DOMElement) {
+                continue;
             }
+
+            $elements[(int) $node->getAttribute(WidgetTree::INDEX)] = $this->element($tree, $node);
         }
 
         $matches = $finder->query($xpath);
@@ -59,9 +66,11 @@ final class WidgetQuery
 
         $found = [];
         foreach ($matches as $node) {
-            if ($node instanceof \DOMElement) {
-                $found[] = $elements[(int) $node->getAttribute(WidgetTree::INDEX)];
+            if (!$node instanceof \DOMElement) {
+                continue;
             }
+
+            $found[] = $elements[(int) $node->getAttribute(WidgetTree::INDEX)];
         }
 
         return $found;
@@ -92,7 +101,7 @@ final class WidgetQuery
             name: $node->localName ?? $node->nodeName,
             widgetClass: $node->getAttribute('widget'),
             id: $node->hasAttribute('id') ? $node->getAttribute('id') : null,
-            classes: '' === $class ? [] : explode(' ', $class),
+            classes: '' === $class ? [] : \explode(' ', $class),
             label: $node->hasAttribute('label') ? $node->getAttribute('label') : null,
             value: $node->hasAttribute('value') ? $node->getAttribute('value') : null,
             selected: $node->hasAttribute('selected') ? $node->getAttribute('selected') : null,

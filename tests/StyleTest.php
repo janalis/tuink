@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 /*
  * This file is part of the tuink package.
  *
@@ -69,7 +71,7 @@ final class StyleTest extends TestCase
     public function testUnknownColor(): void
     {
         $this->expectException(\InvalidArgumentException::class);
-        $this->expectExceptionMessage('Unknown color "teal"');
+        $this->expectExceptionMessageIsOrContains('Unknown color "teal"');
 
         Style::name('teal');
     }

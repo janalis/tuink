@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 /*
  * This file is part of the tuink package.
  *
@@ -12,4 +14,4 @@ use Symfony\Component\Tui\Terminal\VirtualTerminal;
 use Symfony\Component\Tui\Tui;
 
 // The in-process driver calls this with the terminal to build the Tui on
-return static fn (VirtualTerminal $terminal): Tui => (new DemoApp($terminal))->tui;
+return static fn (VirtualTerminal $terminal): Tui => new DemoApp($terminal)->tui;

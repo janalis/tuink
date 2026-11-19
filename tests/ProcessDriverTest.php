@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 /*
  * This file is part of the tuink package.
  *
@@ -35,7 +37,7 @@ final class ProcessDriverTest extends TestCase
 
     public function testTheRealEntryPoint(): void
     {
-        $session = $this->demo(60, 12);
+        $session = $this->demo(60, rows: 12);
 
         $this->assertSame('Tuink demo', $session->getLine(1));
         $session->assertSee('Size: 60x12');
@@ -48,8 +50,8 @@ final class ProcessDriverTest extends TestCase
 
     public function testResizeReachesTheApplication(): void
     {
-        $session = $this->demo(60, 12);
-        $session->resize(44, 9);
+        $session = $this->demo(60, rows: 12);
+        $session->resize(44, rows: 9);
 
         $session->assertSee('Size: 44x9');
         $this->assertCount(9, $session->getLines());
@@ -86,17 +88,18 @@ final class ProcessDriverTest extends TestCase
 
     public function testSelectorsThroughTheProbe(): void
     {
-        $session = $this->demo(60, 12);
+        $session = $this->demo(60, rows: 12);
         $session->send('Ada<Enter>');
 
-        $session->assertSeeIn('#greeting', 'Hello, Ada!');
-        $this->assertSame(['select-list#color'], array_map(static fn (Element $e): string => $e->describe(), $session->find(':focus')));
+        $session->assertSeeIn('#greeting', text: 'Hello, Ada!');
+        $this->assertSame(['select-list#color'], \array_map(static fn (Element $e): string => $e->describe(), $session->find(':focus')));
         $element = $session->findOne('#name');
         $this->assertSame('Ada', $element->value);
-        $this->assertNull($element->widget, 'Widgets stay in the application.');
+        // Widgets stay in the application
+        $this->assertNull($element->widget);
 
         $session->focus('#name');
-        $session->assertElementCount('input:focus', 1);
+        $session->assertElementCount('input:focus', count: 1);
         $session->type('!');
         $this->assertSame('Ada!', $session->findOne('#name')->value);
     }
@@ -108,7 +111,7 @@ final class ProcessDriverTest extends TestCase
         $this->session->start();
 
         foreach ([0.25, 0.2] as $i => $bound) {
-            $start = microtime(true);
+            $start = \microtime(true);
             try {
                 $this->session->find('input');
                 $this->fail('An unsupported driver exception was expected.');
@@ -116,18 +119,18 @@ final class ProcessDriverTest extends TestCase
                 $this->assertStringContainsString('did not connect to the tuink probe', $e->getMessage());
             }
             // The first lookup waits for the probe; once it is known missing, lookups fail at once
-            $elapsed = microtime(true) - $start;
+            $elapsed = \microtime(true) - $start;
             0 === $i ? $this->assertGreaterThan($bound, $elapsed) : $this->assertLessThan($bound, $elapsed);
         }
     }
 
     public function testTheProbeSocketIsRemoved(): void
     {
-        $pattern = sys_get_temp_dir().'/tuink-*/probe.sock';
-        $before = glob($pattern) ?: [];
+        $pattern = \sys_get_temp_dir().'/tuink-*/probe.sock';
+        $before = self::glob($pattern);
         $session = $this->demo();
         $session->find('input');
-        $mine = array_values(array_diff(glob($pattern) ?: [], $before));
+        $mine = \array_values(\array_diff(self::glob($pattern), $before));
         $this->assertCount(1, $mine);
 
         $session->stop();
@@ -184,5 +187,15 @@ final class ProcessDriverTest extends TestCase
         $this->session->start();
 
         return $this->session;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function glob(string $pattern): array
+    {
+        $paths = \glob($pattern);
+
+        return false === $paths ? [] : $paths;
     }
 }

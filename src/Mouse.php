@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 /*
  * This file is part of the tuink package.
  *
@@ -33,10 +35,10 @@ final class Mouse
      */
     public static function click(int $line, int $column, string $button = self::LEFT, int $count = 1, array $modifiers = []): string
     {
-        $code = (self::BUTTONS[strtolower($button)] ?? throw new \InvalidArgumentException(\sprintf('Unknown mouse button "%s"; use left, middle or right.', $button))) + self::modifiers($modifiers);
+        $code = (self::BUTTONS[\strtolower($button)] ?? throw new \InvalidArgumentException(\sprintf('Unknown mouse button "%s"; use left, middle or right.', $button))) + self::modifiers($modifiers);
         self::check($line, $column);
 
-        return str_repeat(self::report($code, $line, $column, true).self::report($code, $line, $column, false), max(1, $count));
+        return \str_repeat(self::press($code, $line, $column).self::release($code, $line, $column), \max(1, $count));
     }
 
     /**
@@ -46,7 +48,7 @@ final class Mouse
     {
         self::check($line, $column);
 
-        return self::report(35, $line, $column, true);
+        return self::press(35, $line, $column);
     }
 
     /**
@@ -56,10 +58,12 @@ final class Mouse
      */
     public static function scroll(int $line, int $column, string $direction, int $notches = 1, array $modifiers = []): string
     {
-        $code = (self::WHEEL[strtolower($direction)] ?? throw new \InvalidArgumentException(\sprintf('Unknown scroll direction "%s"; use up, down, left or right.', $direction))) + self::modifiers($modifiers);
+        $code =
+            (self::WHEEL[\strtolower($direction)] ?? throw new \InvalidArgumentException(\sprintf('Unknown scroll direction "%s"; use up, down, left or right.', $direction)))
+            + self::modifiers($modifiers);
         self::check($line, $column);
 
-        return str_repeat(self::report($code, $line, $column, true), max(1, $notches));
+        return \str_repeat(self::press($code, $line, $column), \max(1, $notches));
     }
 
     /**
@@ -72,16 +76,16 @@ final class Mouse
         if (\count($path) < 2) {
             throw new \InvalidArgumentException('A drag needs at least two cells.');
         }
-        $code = self::BUTTONS[strtolower($button)] ?? throw new \InvalidArgumentException(\sprintf('Unknown mouse button "%s"; use left, middle or right.', $button));
+        $code = self::BUTTONS[\strtolower($button)] ?? throw new \InvalidArgumentException(\sprintf('Unknown mouse button "%s"; use left, middle or right.', $button));
 
         $bytes = '';
         $last = \count($path) - 1;
         foreach ($path as $i => [$line, $column]) {
             self::check($line, $column);
             $bytes .= match ($i) {
-                0 => self::report($code, $line, $column, true),
-                $last => self::report($code + 32, $line, $column, true).self::report($code, $line, $column, false),
-                default => self::report($code + 32, $line, $column, true),
+                0 => self::press($code, $line, $column),
+                $last => self::press($code + 32, $line, $column).self::release($code, $line, $column),
+                default => self::press($code + 32, $line, $column),
             };
         }
 
@@ -94,7 +98,7 @@ final class Mouse
     private static function modifiers(array $modifiers): int
     {
         $code = 0;
-        foreach (array_unique(array_map(strtolower(...), $modifiers)) as $modifier) {
+        foreach (\array_unique(\array_map(strtolower(...), $modifiers)) as $modifier) {
             $code |= self::MODIFIERS[$modifier] ?? throw new \InvalidArgumentException(\sprintf('Unknown modifier "%s"; use Shift, Alt or Ctrl.', $modifier));
         }
 
@@ -108,8 +112,13 @@ final class Mouse
         }
     }
 
-    private static function report(int $code, int $line, int $column, bool $press): string
+    private static function press(int $code, int $line, int $column): string
     {
-        return \sprintf("\x1b[<%d;%d;%d%s", $code, $column, $line, $press ? 'M' : 'm');
+        return \sprintf("\x1b[<%d;%d;%dM", $code, $column, $line);
+    }
+
+    private static function release(int $code, int $line, int $column): string
+    {
+        return \sprintf("\x1b[<%d;%d;%dm", $code, $column, $line);
     }
 }

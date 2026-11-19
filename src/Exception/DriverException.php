@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 /*
  * This file is part of the tuink package.
  *
@@ -12,6 +14,4 @@ namespace Janalis\Tuink\Exception;
 /**
  * Thrown when a driver cannot start or drive the application.
  */
-final class DriverException extends \RuntimeException
-{
-}
+final class DriverException extends \RuntimeException {}
