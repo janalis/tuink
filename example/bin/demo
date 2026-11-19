@@ -18,6 +18,12 @@ $app = new DemoApp();
 if (class_exists(TuiProbe::class)) {
     TuiProbe::install($app->tui);
 }
-$app->tui->run();
+// Ask the terminal for SGR mouse reports while the demo runs
+echo "\x1b[?1000h\x1b[?1002h\x1b[?1006h";
+try {
+    $app->tui->run();
+} finally {
+    echo "\x1b[?1006l\x1b[?1002l\x1b[?1000l";
+}
 
 exit($app->exitCode);

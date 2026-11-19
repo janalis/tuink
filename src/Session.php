@@ -117,6 +117,100 @@ final class Session
         $this->settle();
     }
 
+    /**
+     * Clicks at a cell, numbered from line 1, column 1.
+     *
+     * @param list<string> $modifiers Shift, Alt, Ctrl
+     */
+    public function click(int $line, int $column, string $button = Mouse::LEFT, int $count = 1, array $modifiers = []): void
+    {
+        $this->ensureRunning();
+        $this->checkOnScreen($line, $column);
+        $this->driver->send(Mouse::click($line, $column, $button, $count, $modifiers));
+        $this->settle();
+    }
+
+    /**
+     * Clicks the middle of the one widget matching the selector.
+     *
+     * @param list<string> $modifiers
+     */
+    public function clickElement(string $selector, string $button = Mouse::LEFT, int $count = 1, array $modifiers = []): void
+    {
+        [$line, $column] = $this->elementCenter($selector);
+        $this->click($line, $column, $button, $count, $modifiers);
+    }
+
+    /**
+     * Clicks the first character of the first place the screen shows the text, reading left to right, top to bottom.
+     *
+     * @param list<string> $modifiers
+     */
+    public function clickText(string $text, string $button = Mouse::LEFT, int $count = 1, array $modifiers = []): void
+    {
+        $position = null;
+        $this->waitUntil(
+            function () use ($text, &$position): bool {
+                $position = $this->locate($text);
+
+                return null !== $position;
+            },
+            \sprintf('The text "%s" was not found on the screen.', $text),
+        );
+        if (null === $position) {
+            throw new \LogicException('Unreachable.');
+        }
+        $this->click($position[0], $position[1], $button, $count, $modifiers);
+    }
+
+    /**
+     * Turns the wheel over a cell.
+     */
+    public function scroll(int $line, int $column, string $direction, int $notches = 1): void
+    {
+        $this->ensureRunning();
+        $this->checkOnScreen($line, $column);
+        $this->driver->send(Mouse::scroll($line, $column, $direction, $notches));
+        $this->settle();
+    }
+
+    /**
+     * Turns the wheel over the middle of the one widget matching the selector.
+     */
+    public function scrollElement(string $selector, string $direction, int $notches = 1): void
+    {
+        [$line, $column] = $this->elementCenter($selector);
+        $this->scroll($line, $column, $direction, $notches);
+    }
+
+    /**
+     * Drags from one cell to another along a straight line, one cell at a time.
+     */
+    public function drag(int $fromLine, int $fromColumn, int $toLine, int $toColumn, string $button = Mouse::LEFT): void
+    {
+        $this->ensureRunning();
+        $this->checkOnScreen($fromLine, $fromColumn);
+        $this->checkOnScreen($toLine, $toColumn);
+        // One cell per step along the longer axis; a drag that does not move still presses, moves and releases in place
+        $steps = max(abs($toLine - $fromLine), abs($toColumn - $fromColumn), 1);
+        $path = [];
+        for ($i = 0; $i <= $steps; ++$i) {
+            $path[] = [$fromLine + (int) round(($toLine - $fromLine) * $i / $steps), $fromColumn + (int) round(($toColumn - $fromColumn) * $i / $steps)];
+        }
+        $this->driver->send(Mouse::drag($path, $button));
+        $this->settle();
+    }
+
+    /**
+     * Drags from the middle of one widget to the middle of another.
+     */
+    public function dragElement(string $from, string $to, string $button = Mouse::LEFT): void
+    {
+        [$fromLine, $fromColumn] = $this->elementCenter($from);
+        [$toLine, $toColumn] = $this->elementCenter($to);
+        $this->drag($fromLine, $fromColumn, $toLine, $toColumn, $button);
+    }
+
     public function resize(int $columns, int $rows): void
     {
         $this->ensureRunning();
@@ -491,6 +585,43 @@ final class Session
         $text = $this->getScreenText();
 
         return \sprintf("Screen (%dx%d, %s driver, %s):\n%s", $this->columns, $this->rows, $this->driver->getName(), $state, '' === $text ? '    (blank)' : self::number($text));
+    }
+
+    /**
+     * The 1-based [line, column] of the middle of the one visible widget matching the selector.
+     *
+     * @return array{int, int}
+     */
+    private function elementCenter(string $selector): array
+    {
+        $element = $this->findOne($selector);
+        $rect = $element->rect ?? throw new ExpectationException(\sprintf('The element "%s" (%s) is not on the screen, so it cannot be clicked.', $selector, $element->describe()), $this->dump());
+
+        return [$rect->row + intdiv($rect->rows - 1, 2) + 1, $rect->col + intdiv($rect->columns - 1, 2) + 1];
+    }
+
+    /**
+     * The 1-based [line, column] where the screen first shows the text, by display cell.
+     *
+     * @return array{int, int}|null
+     */
+    private function locate(string $text): ?array
+    {
+        foreach ($this->getLines() as $i => $line) {
+            $offset = mb_strpos($line, $text);
+            if (false !== $offset) {
+                return [$i + 1, (new UnicodeString(mb_substr($line, 0, $offset)))->width(false) + 1];
+            }
+        }
+
+        return null;
+    }
+
+    private function checkOnScreen(int $line, int $column): void
+    {
+        if ($line < 1 || $line > $this->rows || $column < 1 || $column > $this->columns) {
+            throw new \OutOfRangeException(\sprintf('Line %d, column %d is off the %dx%d screen.', $line, $column, $this->columns, $this->rows));
+        }
     }
 
     /**

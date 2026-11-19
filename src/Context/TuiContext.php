@@ -16,6 +16,7 @@ use Behat\Step\When;
 use Janalis\Tuink\Driver\InProcessDriver;
 use Janalis\Tuink\Exception\ExpectationException;
 use Janalis\Tuink\Exception\UnsupportedDriverException;
+use Janalis\Tuink\Mouse;
 use Janalis\Tuink\Selector\Element;
 use Symfony\Component\Tui\Tui;
 
@@ -75,6 +76,51 @@ class TuiContext implements TuinkAwareContext
     public function pasteBlock(PyStringNode $text): void
     {
         $this->getSession()->paste($text->getRaw());
+    }
+
+    #[When('/^I (double-|triple-|right-|middle-)?click "([^"]+)"(?: with "([^"]+)")?$/')]
+    public function click(string $kind, string $selector, string $modifiers = ''): void
+    {
+        [$button, $count] = self::clickKind($kind);
+        $this->getSession()->clickElement($selector, $button, $count, self::modifiers($modifiers));
+    }
+
+    #[When('/^I (double-|triple-|right-|middle-)?click on the text "([^"]+)"(?: with "([^"]+)")?$/')]
+    public function clickText(string $kind, string $text, string $modifiers = ''): void
+    {
+        [$button, $count] = self::clickKind($kind);
+        $this->getSession()->clickText($text, $button, $count, self::modifiers($modifiers));
+    }
+
+    #[When('/^I (double-|triple-|right-|middle-)?click at line (\d+), column (\d+)(?: with "([^"]+)")?$/')]
+    public function clickAt(string $kind, int $line, int $column, string $modifiers = ''): void
+    {
+        [$button, $count] = self::clickKind($kind);
+        $this->getSession()->click($line, $column, $button, $count, self::modifiers($modifiers));
+    }
+
+    #[When('/^I scroll (up|down|left|right)(?: (\d+) times?)? (?:in|over) "([^"]+)"$/')]
+    public function scroll(string $direction, int|string $times, string $selector): void
+    {
+        $this->getSession()->scrollElement($selector, $direction, '' === $times ? 1 : (int) $times);
+    }
+
+    #[When('/^I scroll (up|down|left|right)(?: (\d+) times?)? at line (\d+), column (\d+)$/')]
+    public function scrollAt(string $direction, int|string $times, int $line, int $column): void
+    {
+        $this->getSession()->scroll($line, $column, $direction, '' === $times ? 1 : (int) $times);
+    }
+
+    #[When('/^I drag "([^"]+)" to "([^"]+)"$/')]
+    public function drag(string $from, string $to): void
+    {
+        $this->getSession()->dragElement($from, $to);
+    }
+
+    #[When('/^I drag from line (\d+), column (\d+) to line (\d+), column (\d+)$/')]
+    public function dragAt(int $fromLine, int $fromColumn, int $toLine, int $toColumn): void
+    {
+        $this->getSession()->drag($fromLine, $fromColumn, $toLine, $toColumn);
     }
 
     #[When('/^I resize the terminal to (\d+)x(\d+)$/')]
@@ -254,5 +300,27 @@ class TuiContext implements TuinkAwareContext
         }
 
         return $driver->getTui();
+    }
+
+    /**
+     * @return array{string, int} The button and the number of clicks
+     */
+    private static function clickKind(string $kind): array
+    {
+        return match ($kind) {
+            'double-' => [Mouse::LEFT, 2],
+            'triple-' => [Mouse::LEFT, 3],
+            'right-' => [Mouse::RIGHT, 1],
+            'middle-' => [Mouse::MIDDLE, 1],
+            default => [Mouse::LEFT, 1],
+        };
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function modifiers(string $modifiers): array
+    {
+        return '' === $modifiers ? [] : array_map(trim(...), explode('+', $modifiers));
     }
 }

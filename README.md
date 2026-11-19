@@ -89,6 +89,13 @@ Your entry point does the same with the real terminal and calls `run()`. The dri
 | `When I press "Enter"` / `When I press "Down" 3 times`        | See key names below                                             |
 | `When I send "Ada<Tab>Lovelace<Enter>"`                       | Text and `<Key>` names mixed                                    |
 | `When I paste "text"` / `When I paste:` + doc string          | Bracketed paste                                                 |
+| `When I click "selector"`                                     | The middle of the one match; see [Mouse](#mouse)                |
+| `When I click on the text "Save"`                             | Its first character, where the screen first shows it            |
+| `When I click at line 5, column 12`                           |                                                                 |
+| `When I double-click …`, `triple-click`, `right-click`, `middle-click` | Any of the three forms above                           |
+| `When I click … with "Ctrl+Shift"`                            | Shift, Alt, Ctrl held                                           |
+| `When I scroll down 3 times over "selector"`                  | `up`, `down`, `left`, `right`; or `at line 5, column 12`        |
+| `When I drag "selector" to "selector"`                        | Or `from line 2, column 1 to line 9, column 40`                 |
 | `When I resize the terminal to 60x20`                         |                                                                 |
 | `When I wait 1.5 seconds`                                     | Lets timers run                                                 |
 | `When I stop the app`                                         |                                                                 |
@@ -121,6 +128,17 @@ Screen (80x24, in_process driver, running):
 2 | Status: ready
 …
 ```
+
+### Mouse
+
+Symfony Tui has no mouse events of its own: it hands the SGR reports a terminal sends in mode 1006 (`ESC [ < 0 ; 12 ; 5 M`) to the application as `InputEvent` data, and the application decides what a click means, usually by testing `$tui->getWidgetRect($widget)->contains($row, $column)`. The mouse steps send those reports, the same bytes a terminal would, so they work on both drivers:
+
+- a click is a press and a release; a double or triple click repeats them;
+- the wheel sends presses of buttons 64 to 67;
+- a drag presses, moves one cell at a time with the button held (motion reports), and releases;
+- Shift, Alt and Ctrl add 4, 8 and 16 to the button code.
+
+Clicking text needs nothing from the application. Clicking an element needs CSS selectors, so on the `process` driver the application must install the probe. A real terminal only reports the mouse once the application enables it (`ESC [ ? 1000 h` and `ESC [ ? 1006 h`); tuink sends reports either way, so enable them in your entry point or users will not get what your tests click. The demo's `example/bin/demo` shows both, and `DemoApp::handleMouse()` a hit test.
 
 ### CSS selectors
 
