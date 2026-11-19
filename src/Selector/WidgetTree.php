@@ -149,14 +149,18 @@ final class WidgetTree
 
     private static function root(Tui $tui): AbstractWidget
     {
-        // Tui keeps its root container private; it is what Tui::add() adds to
-        try {
-            $root = (new \ReflectionProperty(Tui::class, 'root'))->getValue($tui);
-        } catch (\ReflectionException $e) {
-            throw new \LogicException('This version of symfony/tui has no root container tuink can read.', 0, $e);
+        // Releases without Tui::getRoot() keep the root container private: read the property then
+        if (method_exists($tui, 'getRoot')) {
+            $root = $tui->getRoot();
+        } else {
+            try {
+                $root = (new \ReflectionProperty(Tui::class, 'root'))->getValue($tui);
+            } catch (\ReflectionException $e) {
+                throw new \LogicException('This version of symfony/tui has neither Tui::getRoot() nor a root property tuink can read.', 0, $e);
+            }
         }
         if (!$root instanceof AbstractWidget) {
-            throw new \LogicException('This version of symfony/tui has no root container tuink can read.');
+            throw new \LogicException('This version of symfony/tui has neither Tui::getRoot() nor a root property tuink can read.');
         }
 
         return $root;

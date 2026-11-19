@@ -132,6 +132,27 @@ final class WidgetQueryTest extends TestCase
         $this->assertSame([], $copy->widgets, 'Widgets do not travel.');
     }
 
+    public function testTheRootComesFromGetRootWhenTuiHasIt(): void
+    {
+        $other = (new ContainerWidget())->setId('elsewhere');
+        $other->add((new TextWidget('x'))->setId('inside'));
+        $tui = new class($other, new VirtualTerminal()) extends Tui {
+            public function __construct(private readonly ContainerWidget $other, VirtualTerminal $terminal)
+            {
+                parent::__construct(terminal: $terminal);
+            }
+
+            public function getRoot(): ContainerWidget
+            {
+                return $this->other;
+            }
+        };
+
+        $root = WidgetTree::fromTui($tui)->document->documentElement;
+
+        $this->assertSame('elsewhere', $root?->getAttribute('id'));
+    }
+
     public function testInvalidXml(): void
     {
         $this->expectException(\UnexpectedValueException::class);

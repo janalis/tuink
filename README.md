@@ -157,6 +157,8 @@ Widgets can be found with CSS selectors. tuink mirrors the widget tree into an X
 | `:contains("text")`        | Widgets showing the text, children included                                              |
 | `:root`                    | The root container `Tui::add()` adds to                                                  |
 
+The tree starts at `Tui::getRoot()`. symfony/tui releases without that method keep the root container private, and tuink reads it by reflection.
+
 A widget's text is what the screen shows inside the rectangle it was drawn in, so `I should see "Saved" in "#status"` reads the screen, not the widget's properties.
 
 ```gherkin
