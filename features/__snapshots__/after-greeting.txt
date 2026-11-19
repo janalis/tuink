@@ -1,0 +1,9 @@
+Tuink demo
+Status: ready
+Size: 50x10
+Name: Ada
+Hello, Ada!
+  Red
+→ Green
+  Blue
+Enter: submit  Esc: leave  Ctrl+C: quit

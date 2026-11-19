@@ -1,0 +1,45 @@
+{
+    "name": "janalis/tuink",
+    "description": "Behat extension for end-to-end testing of Symfony Tui applications, in process or in a real pseudo-terminal",
+    "type": "library",
+    "keywords": ["behat", "tui", "terminal", "e2e", "symfony", "testing", "bdd"],
+    "license": "MIT",
+    "authors": [
+        { "name": "The tuink authors", "homepage": "https://github.com/janalis/tuink/graphs/contributors" }
+    ],
+    "require": {
+        "php": ">=8.4.1",
+        "behat/behat": "^4.0",
+        "symfony/process": "^7.4 || ^8.0",
+        "symfony/tui": "^8.2@beta"
+    },
+    "require-dev": {
+        "friendsofphp/php-cs-fixer": "^3.89",
+        "phpstan/phpstan": "^2.1",
+        "phpunit/phpunit": "^12.4 || ^13.0"
+    },
+    "autoload": {
+        "psr-4": { "Janalis\\Tuink\\": "src/" }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Janalis\\Tuink\\Tests\\": "tests/",
+            "Janalis\\Tuink\\Example\\": "example/src/"
+        }
+    },
+    "minimum-stability": "beta",
+    "prefer-stable": true,
+    "config": {
+        "sort-packages": true
+    },
+    "scripts": {
+        "test": [
+            "@php vendor/bin/phpunit",
+            "@php vendor/bin/behat --strict",
+            "@php vendor/bin/behat --strict --profile=process"
+        ],
+        "analyze": "@php vendor/bin/phpstan analyse",
+        "cs": "@php vendor/bin/php-cs-fixer fix --dry-run --diff",
+        "cs-fix": "@php vendor/bin/php-cs-fixer fix"
+    }
+}

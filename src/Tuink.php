@@ -1,0 +1,159 @@
+<?php
+
+/*
+ * This file is part of the tuink package.
+ *
+ * For the full copyright and license information, please view the LICENSE
+ * file that was distributed with this source code.
+ */
+
+namespace Janalis\Tuink;
+
+use Janalis\Tuink\Driver\DriverInterface;
+use Janalis\Tuink\Driver\InProcessDriver;
+use Janalis\Tuink\Driver\ProcessDriver;
+
+/**
+ * Hands out the session of the current scenario, on the driver it asks for.
+ */
+final class Tuink
+{
+    /** Seconds of silence after which an in-process application counts as settled. */
+    public const IN_PROCESS_QUIET_PERIOD = 0.02;
+
+    /** Seconds of silence after which a process counts as settled; a pty adds latency. */
+    public const PROCESS_QUIET_PERIOD = 0.05;
+
+    private string $driverName;
+    private ?Session $session = null;
+
+    /**
+     * @param array<string, \Closure(): DriverInterface> $drivers
+     * @param array<string, float>                       $quietPeriods Per driver name
+     */
+    public function __construct(
+        private readonly array $drivers,
+        private readonly string $defaultDriver,
+        private readonly int $columns = 80,
+        private readonly int $rows = 24,
+        private readonly float $timeout = 2.0,
+        private readonly array $quietPeriods = [],
+        private readonly ?string $snapshotDir = null,
+    ) {
+        if (!isset($drivers[$defaultDriver])) {
+            throw new \InvalidArgumentException(\sprintf('The default driver "%s" is not configured; configured drivers: "%s".', $defaultDriver, implode('", "', array_keys($drivers))));
+        }
+        $this->driverName = $defaultDriver;
+    }
+
+    /**
+     * Builds the manager from the extension configuration.
+     *
+     * @param array{
+     *     default_driver: string,
+     *     columns: int,
+     *     rows: int,
+     *     timeout: float,
+     *     quiet_period: ?float,
+     *     snapshots: ?string,
+     *     in_process?: array{factory: string},
+     *     process?: array{command: list<string>, cwd: ?string, env: array<string, string>},
+     * } $config
+     */
+    public static function fromConfig(array $config, string $basePath): self
+    {
+        $resolve = static fn (string $path): string => str_starts_with($path, '/') || preg_match('~^[A-Za-z]:[\\\\/]~', $path) ? $path : $basePath.'/'.$path;
+
+        $drivers = [];
+        $quiet = [];
+        if (isset($config['in_process'])) {
+            $path = $resolve($config['in_process']['factory']);
+            $factory = null;
+            // The file is required once: a factory file that declares functions or classes cannot run twice
+            $drivers['in_process'] = static function () use ($path, &$factory): DriverInterface {
+                $factory ??= InProcessDriver::loadFactory($path);
+
+                return new InProcessDriver($factory);
+            };
+            $quiet['in_process'] = $config['quiet_period'] ?? self::IN_PROCESS_QUIET_PERIOD;
+        }
+        if (isset($config['process'])) {
+            $process = $config['process'];
+            $cwd = $resolve($process['cwd'] ?? '.');
+            $drivers['process'] = static fn (): DriverInterface => new ProcessDriver($process['command'], $cwd, $process['env']);
+            $quiet['process'] = $config['quiet_period'] ?? self::PROCESS_QUIET_PERIOD;
+        }
+
+        return new self(
+            $drivers,
+            $config['default_driver'],
+            $config['columns'],
+            $config['rows'],
+            $config['timeout'],
+            $quiet,
+            null === $config['snapshots'] ? null : $resolve($config['snapshots']),
+        );
+    }
+
+    public function hasDriver(string $name): bool
+    {
+        return isset($this->drivers[$name]);
+    }
+
+    /**
+     * @return list<string>
+     */
+    public function getDriverNames(): array
+    {
+        return array_keys($this->drivers);
+    }
+
+    public function getDriverName(): string
+    {
+        return $this->driverName;
+    }
+
+    /**
+     * Switches the driver; the running session, if any, is stopped.
+     */
+    public function useDriver(string $name): void
+    {
+        if (!isset($this->drivers[$name])) {
+            throw new \InvalidArgumentException(\sprintf('The driver "%s" is not configured; configured drivers: "%s".', $name, implode('", "', array_keys($this->drivers))));
+        }
+        if ($name !== $this->driverName) {
+            $this->reset();
+            $this->driverName = $name;
+        }
+    }
+
+    public function getSession(): Session
+    {
+        return $this->session ??= new Session(
+            ($this->drivers[$this->driverName])(),
+            $this->columns,
+            $this->rows,
+            $this->timeout,
+            $this->quietPeriods[$this->driverName] ?? self::PROCESS_QUIET_PERIOD,
+            $this->snapshotDir,
+        );
+    }
+
+    /**
+     * Stops the session; the next getSession() starts from scratch.
+     */
+    public function reset(): void
+    {
+        $this->session?->stop();
+        $this->session = null;
+    }
+
+    /**
+     * Stops the session and goes back to the default driver, between scenarios.
+     */
+    public function restoreDefaults(): void
+    {
+        $this->reset();
+        $this->driverName = $this->defaultDriver;
+    }
+}
