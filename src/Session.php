@@ -148,19 +148,8 @@ final class Session
      */
     public function clickText(string $text, string $button = Mouse::LEFT, int $count = 1, array $modifiers = []): void
     {
-        $position = null;
-        $this->waitUntil(
-            function () use ($text, &$position): bool {
-                $position = $this->locate($text);
-
-                return null !== $position;
-            },
-            \sprintf('The text "%s" was not found on the screen.', $text),
-        );
-        if (null === $position) {
-            throw new \LogicException('Unreachable.');
-        }
-        $this->click($position[0], $position[1], $button, $count, $modifiers);
+        [$line, $column] = $this->locateOrFail($text);
+        $this->click($line, $column, $button, $count, $modifiers);
     }
 
     /**
@@ -211,6 +200,80 @@ final class Session
         $this->drag($fromLine, $fromColumn, $toLine, $toColumn, $button);
     }
 
+    /**
+     * Moves the pointer over a cell without a button, as hovering does.
+     */
+    public function hover(int $line, int $column): void
+    {
+        $this->ensureRunning();
+        $this->checkOnScreen($line, $column);
+        $this->driver->send(Mouse::move($line, $column));
+        $this->settle();
+    }
+
+    public function hoverElement(string $selector): void
+    {
+        [$line, $column] = $this->elementCenter($selector);
+        $this->hover($line, $column);
+    }
+
+    public function hoverText(string $text): void
+    {
+        [$line, $column] = $this->locateOrFail($text);
+        $this->hover($line, $column);
+    }
+
+    /**
+     * Focuses the field, clears its line (End, then Ctrl+U) and types the text.
+     */
+    public function fillIn(string $selector, string $text): void
+    {
+        $this->focus($selector);
+        $this->driver->send(Keys::key('End').Keys::key('Ctrl+U'));
+        $this->driver->pump(0.0);
+        $this->type($text);
+    }
+
+    /**
+     * Moves the selection of a list to the item with that label, with the arrow keys, and confirms it with Enter.
+     */
+    public function selectOption(string $selector, string $label): void
+    {
+        $this->focus($selector);
+        $selected = function () use ($selector): string {
+            return $this->findOne($selector)->selected ?? throw new \LogicException(\sprintf('The element "%s" has no selected item; it is not a list.', $selector));
+        };
+
+        // Walk down, then up; a direction ends when the selection comes back to an item already seen, at the end of the list or after wrapping around
+        $seen = [$selected() => true];
+        foreach (['Down', 'Up'] as $key) {
+            while (true) {
+                if ($selected() === $label) {
+                    $this->press('Enter');
+
+                    return;
+                }
+                $this->press($key);
+                $now = $selected();
+                if (isset($seen[$now]) && $now !== $label) {
+                    break;
+                }
+                $seen[$now] = true;
+            }
+        }
+
+        throw new ExpectationException(\sprintf('The list "%s" has no item "%s"; its items are "%s".', $selector, $label, implode('", "', array_keys($seen))), $this->dump());
+    }
+
+    /**
+     * Stops the application and starts it again in a terminal of the same size.
+     */
+    public function restart(): void
+    {
+        $this->stop();
+        $this->start($this->columns, $this->rows);
+    }
+
     public function resize(int $columns, int $rows): void
     {
         $this->ensureRunning();
@@ -223,16 +286,19 @@ final class Session
     /**
      * Lets the application run until its output has been quiet for a moment, or the timeout passed.
      *
-     * @param bool $awaitOutput Wait for a first write before counting the quiet time
+     * @param bool $awaitFrame Wait until the screen shows something before counting the quiet time: an application
+     *                         often writes escape sequences (modes, a title) before its first frame
      */
-    public function settle(bool $awaitOutput = false): void
+    public function settle(bool $awaitFrame = false): void
     {
         $deadline = microtime(true) + $this->timeout;
-        $lastWrite = $awaitOutput ? null : microtime(true);
+        $lastWrite = $awaitFrame ? null : microtime(true);
 
         while (microtime(true) < $deadline) {
             if ($this->driver->pump(0.005)) {
-                $lastWrite = microtime(true);
+                if (!$awaitFrame || '' !== $this->getScreenText()) {
+                    $lastWrite = microtime(true);
+                }
             } elseif (!$this->driver->isRunning()) {
                 return;
             } elseif (null !== $lastWrite && microtime(true) - $lastWrite >= $this->quietPeriod) {
@@ -315,6 +381,123 @@ final class Session
         $this->waitUntil(
             static fn (self $s): bool => 1 === preg_match($pattern, $s->getScreenText()),
             \sprintf('No text on the screen matches %s.', $pattern),
+        );
+    }
+
+    public function assertNotSeeMatch(string $pattern): void
+    {
+        $this->settle();
+        $this->waitUntil(
+            static fn (self $s): bool => 1 !== preg_match($pattern, $s->getScreenText()),
+            \sprintf('Text on the screen matches %s.', $pattern),
+        );
+    }
+
+    /**
+     * Checks how many times the screen shows the text, counting each line separately.
+     */
+    public function assertSeeCount(string $text, int $count): void
+    {
+        $occurrences = static fn (self $s): int => array_sum(array_map(static fn (string $line): int => substr_count($line, $text), $s->getLines()));
+        $this->waitUntil(
+            static fn (self $s): bool => $occurrences($s) === $count,
+            fn (): string => \sprintf('The text "%s" is on the screen %d times, not %d.', $text, $occurrences($this), $count),
+        );
+    }
+
+    public function assertLineNotContains(int $number, string $text): void
+    {
+        $this->settle();
+        $this->waitUntil(
+            static fn (self $s): bool => !str_contains($s->lineOrEmpty($number), $text),
+            \sprintf('Line %d contains "%s".', $number, $text),
+        );
+    }
+
+    /**
+     * Checks the value of the one field matching the selector contains the text, or does not.
+     */
+    public function assertFieldContains(string $selector, string $text, bool $contains = true): void
+    {
+        $value = function () use ($selector): string {
+            $element = $this->findOne($selector);
+
+            return $element->value ?? throw new \LogicException(\sprintf('The element "%s" (%s) has no value.', $selector, $element->widgetClass));
+        };
+        if (!$contains) {
+            $this->settle();
+        }
+        $this->waitUntil(
+            static fn (): bool => str_contains($value(), $text) === $contains,
+            static fn (): string => \sprintf('The field "%s" has the value "%s", which %s "%s".', $selector, $value(), $contains ? 'does not contain' : 'contains', $text),
+        );
+    }
+
+    /**
+     * The style of each cell where the screen first shows the text.
+     *
+     * @return list<Style>
+     */
+    public function getTextStyles(string $text): array
+    {
+        [$line, $column] = $this->locateOrFail($text);
+        $cells = $this->driver->getScreen()->getCells()[$line - 1] ?? [];
+        $width = (new UnicodeString($text))->width(false);
+        $styles = [];
+        for ($col = $column - 1; $col < $column - 1 + $width; ++$col) {
+            // Skip the second cell of a wide character, which only repeats the first
+            if ('' !== ($cells[$col]['char'] ?? ' ')) {
+                $styles[] = Style::fromSgr($cells[$col]['style'] ?? '');
+            }
+        }
+
+        return $styles;
+    }
+
+    /**
+     * Checks that every cell of the text has the attribute (bold, underlined…), or that none has it.
+     */
+    public function assertTextStyle(string $text, string $attribute, bool $has = true): void
+    {
+        if (!\in_array($attribute, Style::ATTRIBUTES, true)) {
+            throw new \InvalidArgumentException(\sprintf('Unknown text attribute "%s"; use %s.', $attribute, implode(', ', Style::ATTRIBUTES)));
+        }
+        $this->waitUntil(
+            fn (): bool => [] === array_filter($this->getTextStyles($text), static fn (Style $s): bool => $s->has($attribute) !== $has),
+            fn (): string => \sprintf('The text "%s" is %s%s: %s.', $text, $has ? 'not ' : '', $attribute, $this->describeStyles($text)),
+        );
+    }
+
+    /**
+     * Checks the foreground, or the background, color of every cell of the text.
+     */
+    public function assertTextColor(string $text, string $color, bool $background = false): void
+    {
+        $color = Style::name($color);
+        $this->waitUntil(
+            fn (): bool => [] === array_filter($this->getTextStyles($text), static fn (Style $s): bool => ($background ? $s->background : $s->foreground) !== $color),
+            fn (): string => \sprintf('The text "%s" does not have the %s color %s: %s.', $text, $background ? 'background' : 'foreground', $color, $this->describeStyles($text)),
+        );
+    }
+
+    /**
+     * Checks how many times the terminal bell rang since the application started, or that it rang at all.
+     */
+    public function assertBell(?int $count = null): void
+    {
+        $observer = $this->driver->getObserver();
+        $this->waitUntil(
+            static fn (): bool => null === $count ? $observer->getBellCount() > 0 : $observer->getBellCount() === $count,
+            static fn (): string => \sprintf('The bell rang %d times%s.', $observer->getBellCount(), null === $count ? '' : \sprintf(', not %d', $count)),
+        );
+    }
+
+    public function assertTitle(string $title): void
+    {
+        $observer = $this->driver->getObserver();
+        $this->waitUntil(
+            static fn (): bool => $observer->getTitle() === $title,
+            static fn (): string => null === $observer->getTitle() ? \sprintf('No title was set; "%s" was expected.', $title) : \sprintf('The title is "%s", not "%s".', $observer->getTitle(), $title),
         );
     }
 
@@ -615,6 +798,26 @@ final class Session
         }
 
         return null;
+    }
+
+    /**
+     * @return array{int, int}
+     */
+    private function locateOrFail(string $text): array
+    {
+        $this->waitUntil(
+            fn (): bool => null !== $this->locate($text),
+            \sprintf('The text "%s" was not found on the screen.', $text),
+        );
+
+        return $this->locate($text) ?? throw new ExpectationException(\sprintf('The text "%s" was not found on the screen.', $text), $this->dump());
+    }
+
+    private function describeStyles(string $text): string
+    {
+        $styles = array_map(static fn (Style $s): string => $s->describe(), $this->getTextStyles($text));
+
+        return 1 === \count(array_unique($styles)) ? $styles[0] : implode(' | ', $styles);
     }
 
     private function checkOnScreen(int $line, int $column): void

@@ -175,6 +175,18 @@ final class WidgetQueryTest extends TestCase
         yield 'visible' => [static fn (Session $s) => $s->assertElementVisible('#greeting'), 'No element matching "#greeting" is on the screen.'];
         yield 'not visible' => [static fn (Session $s) => $s->assertElementNotVisible('input'), 'Elements matching "input" are on the screen: input#name.'];
         yield 'shows, many' => [static fn (Session $s) => $s->assertElementShows('.message', 'x'), '2 elements match ".message", one was expected: text#greeting.message, text#choice.message.'];
+        yield 'field contains' => [static fn (Session $s) => $s->assertFieldContains('#name', 'Ada'), 'The field "#name" has the value "", which does not contain "Ada".'];
+        yield 'see count' => [static fn (Session $s) => $s->assertSeeCount('Blue', 3), 'The text "Blue" is on the screen 1 times, not 3.'];
+        yield 'not see match' => [static fn (Session $s) => $s->assertNotSeeMatch('/Size: \\d+/'), 'Text on the screen matches /Size: \\d+/.'];
+        yield 'line not contains' => [static fn (Session $s) => $s->assertLineNotContains(1, 'demo'), 'Line 1 contains "demo".'];
+        yield 'style' => [static fn (Session $s) => $s->assertTextStyle('Tuink demo', 'italic'), 'The text "Tuink demo" is not italic: bold, #5f87ff.'];
+        yield 'style absent' => [static fn (Session $s) => $s->assertTextStyle('Tuink demo', 'bold', false), 'The text "Tuink demo" is bold: bold, #5f87ff.'];
+        yield 'color' => [static fn (Session $s) => $s->assertTextColor('Status', 'red'), 'The text "Status" does not have the foreground color red: plain.'];
+        yield 'background' => [static fn (Session $s) => $s->assertTextColor('Tuink', '#000', true), 'The text "Tuink" does not have the background color #000000: bold, #5f87ff.'];
+        yield 'bell' => [static fn (Session $s) => $s->assertBell(), 'The bell rang 0 times.'];
+        yield 'bell count' => [static fn (Session $s) => $s->assertBell(2), 'The bell rang 0 times, not 2.'];
+        yield 'title' => [static fn (Session $s) => $s->assertTitle('Other'), 'The title is "Tuink demo", not "Other".'];
+        yield 'select missing' => [static fn (Session $s) => $s->selectOption('#color', 'Purple'), 'The list "#color" has no item "Purple"; its items are "Red", "Green", "Blue".'];
         yield 'shows, wrong' => [static fn (Session $s) => $s->assertElementShows('#size', 'Size: 1x1'), "The element \"#size\" does not show:\n1 | Size: 1x1\n\nIt shows:\n1 | Size: 80x24"];
     }
 
@@ -195,6 +207,14 @@ final class WidgetQueryTest extends TestCase
             $this->assertStringContainsString($message, $e->getMessage());
             $this->assertStringContainsString('Screen (80x24, in_process driver, running):', $e->getMessage());
         }
+    }
+
+    public function testAFieldWithoutAValue(): void
+    {
+        $this->expectException(\LogicException::class);
+        $this->expectExceptionMessage('The element "#color" (Symfony\Component\Tui\Widget\SelectListWidget) has no value.');
+
+        $this->demo(timeout: 0.05)->assertFieldContains('#color', 'x');
     }
 
     public function testPassingAssertions(): void

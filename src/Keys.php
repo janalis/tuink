@@ -132,13 +132,14 @@ final class Keys
             return "\r";
         }
 
-        if ('space' === $lower && $ctrl) {
+        if ('space' === $lower && $ctrl && !$shift) {
             return ($alt ? "\x1b" : '')."\x00";
         }
 
         if (isset(self::NAMED[$lower])) {
             if ($ctrl || $shift) {
-                throw new \InvalidArgumentException(\sprintf('Key "%s" has no terminal encoding: only Alt combines with %s.', $name, $base));
+                // Legacy encodings have no room for these: send the CSI u form (kitty keyboard protocol), which the Tui key parser reads
+                return \sprintf("\x1b[%d;%du", \ord(self::NAMED[$lower][-1]), $modifier);
             }
 
             return ($alt ? "\x1b" : '').self::NAMED[$lower];
@@ -146,6 +147,11 @@ final class Keys
 
         if (1 !== mb_strlen($base)) {
             throw new \InvalidArgumentException(\sprintf('Unknown key "%s".', $name));
+        }
+
+        if ($ctrl && ($shift || $alt) && 1 === \strlen($base) && ctype_alpha($base)) {
+            // A control code cannot carry Shift, nor Alt cleanly: CSI u names the letter and every modifier
+            return \sprintf("\x1b[%d;%du", \ord(strtolower($base)), $modifier);
         }
 
         $char = $shift ? mb_strtoupper($base) : $base;

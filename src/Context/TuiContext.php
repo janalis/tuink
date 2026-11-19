@@ -10,6 +10,7 @@
 namespace Janalis\Tuink\Context;
 
 use Behat\Gherkin\Node\PyStringNode;
+use Behat\Gherkin\Node\TableNode;
 use Behat\Step\Given;
 use Behat\Step\Then;
 use Behat\Step\When;
@@ -123,6 +124,53 @@ class TuiContext implements TuinkAwareContext
         $this->getSession()->drag($fromLine, $fromColumn, $toLine, $toColumn);
     }
 
+    #[When('/^I hover (?:over )?"([^"]+)"$/')]
+    public function hover(string $selector): void
+    {
+        $this->getSession()->hoverElement($selector);
+    }
+
+    #[When('/^I hover over the text "([^"]+)"$/')]
+    public function hoverText(string $text): void
+    {
+        $this->getSession()->hoverText($text);
+    }
+
+    #[When('/^I hover at line (\d+), column (\d+)$/')]
+    public function hoverAt(int $line, int $column): void
+    {
+        $this->getSession()->hover($line, $column);
+    }
+
+    #[When('/^I fill in "([^"]+)" with "([^"]*)"$/')]
+    public function fillIn(string $selector, string $text): void
+    {
+        $this->getSession()->fillIn($selector, $text);
+    }
+
+    #[When('I fill in the following:')]
+    public function fillInTable(TableNode $fields): void
+    {
+        foreach ($fields->getRowsHash() as $selector => $text) {
+            if (!\is_string($text)) {
+                throw new \InvalidArgumentException(\sprintf('Each row needs two cells, a selector and a text; the row of "%s" has more.', $selector));
+            }
+            $this->getSession()->fillIn((string) $selector, $text);
+        }
+    }
+
+    #[When('/^I select "([^"]+)" from "([^"]+)"$/')]
+    public function selectOption(string $label, string $selector): void
+    {
+        $this->getSession()->selectOption($selector, $label);
+    }
+
+    #[When('I restart the app')]
+    public function restartApp(): void
+    {
+        $this->getSession()->restart();
+    }
+
     #[When('/^I resize the terminal to (\d+)x(\d+)$/')]
     public function resize(int $columns, int $rows): void
     {
@@ -156,6 +204,60 @@ class TuiContext implements TuinkAwareContext
     public function assertNotSee(string $text): void
     {
         $this->getSession()->assertNotSee($text);
+    }
+
+    #[Then('I should not see text matching :pattern')]
+    public function assertNotSeeMatch(string $pattern): void
+    {
+        $this->getSession()->assertNotSeeMatch($pattern);
+    }
+
+    #[Then('/^I should see "([^"]*)" (\d+) times?$/')]
+    public function assertSeeCount(string $text, int $count): void
+    {
+        $this->getSession()->assertSeeCount($text, $count);
+    }
+
+    #[Then('/^line (\d+) should not contain "([^"]*)"$/')]
+    public function assertLineNotContains(int $number, string $text): void
+    {
+        $this->getSession()->assertLineNotContains($number, $text);
+    }
+
+    #[Then('/^the "([^"]+)" field should (not )?contain "([^"]*)"$/')]
+    public function assertFieldContains(string $selector, string $not, string $text): void
+    {
+        $this->getSession()->assertFieldContains($selector, $text, '' === $not);
+    }
+
+    #[Then('/^the text "([^"]+)" should (not )?be (bold|dim|italic|underlined|blinking|reversed|hidden|struck through)$/')]
+    public function assertTextStyle(string $text, string $not, string $attribute): void
+    {
+        $this->getSession()->assertTextStyle($text, $attribute, '' === $not);
+    }
+
+    #[Then('/^the text "([^"]+)" should be (?:colored|coloured) "([^"]+)"$/')]
+    public function assertTextColor(string $text, string $color): void
+    {
+        $this->getSession()->assertTextColor($text, $color);
+    }
+
+    #[Then('/^the text "([^"]+)" should have the background "([^"]+)"$/')]
+    public function assertTextBackground(string $text, string $color): void
+    {
+        $this->getSession()->assertTextColor($text, $color, true);
+    }
+
+    #[Then('/^the terminal (?:bell )?should have rung(?: the bell)?(?: (\d+) times?)?$/')]
+    public function assertBell(int|string $times = ''): void
+    {
+        $this->getSession()->assertBell('' === $times ? null : (int) $times);
+    }
+
+    #[Then('the terminal title should be :title')]
+    public function assertTitle(string $title): void
+    {
+        $this->getSession()->assertTitle($title);
     }
 
     #[Then('I should see text matching :pattern')]
@@ -229,13 +331,17 @@ class TuiContext implements TuinkAwareContext
         $this->getSession()->focus($selector);
     }
 
-    #[Then('/^the (?:widget|element) "([^"]+)" should be focused$/')]
-    public function assertFocused(string $selector): void
+    #[Then('/^the (?:widget|element) "([^"]+)" should (not )?be focused$/')]
+    public function assertFocused(string $selector, string $not = ''): void
     {
         $session = $this->getSession();
+        $focused = '' === $not;
+        if (!$focused) {
+            $session->settle();
+        }
         $session->waitUntil(
-            static fn (): bool => [] !== array_filter($session->find($selector), static fn (Element $e): bool => $e->focused),
-            static fn (): string => \sprintf('No element matching "%s" has the focus; %s has it.', $selector, implode(', ', array_map(static fn (Element $e): string => $e->describe(), $session->find(':focus'))) ?: 'nothing'),
+            static fn (): bool => ([] !== array_filter($session->find($selector), static fn (Element $e): bool => $e->focused)) === $focused,
+            static fn (): string => \sprintf($focused ? 'No element matching "%s" has the focus; %s has it.' : 'An element matching "%s" has the focus: %s.', $selector, implode(', ', array_map(static fn (Element $e): string => $e->describe(), $session->find(':focus'))) ?: 'nothing'),
         );
     }
 
@@ -251,6 +357,12 @@ class TuiContext implements TuinkAwareContext
             static fn (): bool => $session->findOne($selector)->value === $value,
             static fn (): string => \sprintf('The element "%s" has the value "%s", not "%s".', $selector, $session->findOne($selector)->value ?? '', $value),
         );
+    }
+
+    #[Then('/^the element "([^"]+)" should (not )?contain "([^"]*)"$/')]
+    public function assertElementContains(string $selector, string $not, string $text): void
+    {
+        '' === $not ? $this->getSession()->assertSeeIn($selector, $text) : $this->getSession()->assertNotSeeIn($selector, $text);
     }
 
     #[Then('/^I should see "([^"]*)" in "([^"]+)"$/')]

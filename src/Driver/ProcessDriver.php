@@ -31,6 +31,7 @@ final class ProcessDriver implements DriverInterface, WidgetTreeProvider
     private ?InputStream $input = null;
     private ?ScreenBuffer $screen = null;
     private OutputBuffer $output;
+    private TerminalObserver $observer;
     private ?string $ttyFile = null;
     private ?ProbeServer $probe = null;
     private bool $probeMissing = false;
@@ -50,6 +51,7 @@ final class ProcessDriver implements DriverInterface, WidgetTreeProvider
             throw new DriverException('The process driver needs a command.');
         }
         $this->output = new OutputBuffer();
+        $this->observer = new TerminalObserver();
     }
 
     public function getName(): string
@@ -92,6 +94,7 @@ final class ProcessDriver implements DriverInterface, WidgetTreeProvider
         $process->setInput($this->input);
         $this->screen = new ScreenBuffer($columns, $rows);
         $this->output = new OutputBuffer();
+        $this->observer = new TerminalObserver();
 
         try {
             $process->start();
@@ -165,7 +168,9 @@ final class ProcessDriver implements DriverInterface, WidgetTreeProvider
         }
 
         // A resize repaints the whole frame, so a fresh buffer of the new size sees all of it
-        $this->getScreen()->write($this->output->flush());
+        $pending = $this->output->flush();
+        $this->getScreen()->write($pending);
+        $this->observer->observe($pending);
         $this->screen = new ScreenBuffer($columns, $rows);
         // The pty is not the child's controlling terminal, so the kernel does not signal it
         if (\function_exists('posix_kill') && \defined('SIGWINCH')) {
@@ -188,6 +193,7 @@ final class ProcessDriver implements DriverInterface, WidgetTreeProvider
             }
             if ('' !== $output) {
                 $this->getScreen()->write($output);
+                $this->observer->observe($output);
                 $wrote = true;
             }
             if (!$process->isRunning()) {
@@ -200,6 +206,11 @@ final class ProcessDriver implements DriverInterface, WidgetTreeProvider
         } while (microtime(true) < $deadline);
 
         return $wrote;
+    }
+
+    public function getObserver(): TerminalObserver
+    {
+        return $this->observer;
     }
 
     public function getScreen(): ScreenBuffer

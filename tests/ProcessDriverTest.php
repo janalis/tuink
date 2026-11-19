@@ -136,6 +136,29 @@ final class ProcessDriverTest extends TestCase
         $this->assertDirectoryDoesNotExist(\dirname($mine[0]));
     }
 
+    public function testTheBellAndTheTitle(): void
+    {
+        if ('Darwin' === \PHP_OS_FAMILY) {
+            $this->markTestSkipped('On macOS, Symfony Tui plays a sound for the bell instead of writing BEL.');
+        }
+
+        $session = $this->demo();
+        $session->assertTitle('Tuink demo');
+        $session->press('Ctrl+G');
+        $session->assertBell(1);
+        $session->send('Ada<Enter>');
+        $session->assertTitle('Tuink demo: Ada');
+    }
+
+    public function testTheTitle(): void
+    {
+        $session = $this->demo();
+        $session->assertTitle('Tuink demo');
+        $session->send('Ada<Enter>');
+        $session->assertTitle('Tuink demo: Ada');
+        $this->assertSame(0, $session->getDriver()->getObserver()->getBellCount());
+    }
+
     public function testACommandThatDoesNotExist(): void
     {
         $this->session = new Session(new ProcessDriver(['/nonexistent/tuink-app']), timeout: 0.5);

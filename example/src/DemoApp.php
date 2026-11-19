@@ -14,6 +14,7 @@ use Symfony\Component\Tui\Event\CancelEvent;
 use Symfony\Component\Tui\Event\InputEvent;
 use Symfony\Component\Tui\Event\SelectEvent;
 use Symfony\Component\Tui\Event\SubmitEvent;
+use Symfony\Component\Tui\Style\Style;
 use Symfony\Component\Tui\Terminal\TerminalInterface;
 use Symfony\Component\Tui\Tui;
 use Symfony\Component\Tui\Widget\AbstractWidget;
@@ -25,7 +26,7 @@ use Symfony\Component\Tui\Widget\TextWidget;
 /**
  * A small form the self-tests drive: a name, a color, a status set by a timer.
  *
- * Ctrl+C quits with code 0, Escape in the color list with code 2.
+ * Ctrl+C quits with code 0, Escape in the color list with code 2; Ctrl+G rings the bell.
  */
 final class DemoApp
 {
@@ -53,15 +54,19 @@ final class DemoApp
         $form->add($greeting);
         $form->add($colors);
 
-        $tui->add((new TextWidget('Tuink demo'))->addStyleClass('title'));
+        $tui->add((new TextWidget('Tuink demo'))->addStyleClass('title')->setStyle(new Style(color: '#5f87ff', bold: true)));
+        $tui->getTerminal()->setTitle('Tuink demo');
         $tui->add($status);
         $tui->add($size);
         $tui->add($form);
         $tui->add($choice);
-        $tui->add(new TextWidget('Enter: submit  Esc: leave  Ctrl+C: quit'));
+        $tui->add((new TextWidget('Enter: submit  Esc: leave  Ctrl+C: quit'))->setStyle(new Style(background: '#303030')));
 
         $name->onSubmit(static function (SubmitEvent $event) use ($tui, $greeting, $colors): void {
             $greeting->setText(\sprintf('Hello, %s!', $event->getValue()));
+            if ('' !== $event->getValue()) {
+                $tui->getTerminal()->setTitle(\sprintf('Tuink demo: %s', $event->getValue()));
+            }
             $tui->setFocus($colors);
         });
         $colors->onSelect(static function (SelectEvent $event) use ($choice): void {
@@ -75,6 +80,10 @@ final class DemoApp
             if ("\x03" === $event->getData()) {
                 $event->stopPropagation();
                 $tui->stop();
+            } elseif ("\x07" === $event->getData()) {
+                // Ctrl+G, the bell key
+                $event->stopPropagation();
+                $tui->getTerminal()->bell();
             }
         });
         $this->handleMouse($tui, $name, $greeting, $colors, $items, $choice);

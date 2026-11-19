@@ -28,6 +28,8 @@ final class Element
         public readonly array $classes,
         public readonly ?string $label,
         public readonly ?string $value,
+        /** The label of the item a list has selected */
+        public readonly ?string $selected,
         public readonly bool $focused,
         public readonly ?WidgetRect $rect,
         public readonly string $text,

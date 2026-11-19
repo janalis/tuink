@@ -42,6 +42,7 @@ final class MouseTest extends TestCase
         yield 'double click' => [Mouse::click(1, 2, count: 2), "\x1b[<0;2;1M\x1b[<0;2;1m\x1b[<0;2;1M\x1b[<0;2;1m"];
         yield 'shift alt ctrl' => [Mouse::click(1, 1, modifiers: ['Shift', 'Alt', 'Ctrl']), "\x1b[<28;1;1M\x1b[<28;1;1m"];
         yield 'repeated modifier' => [Mouse::click(1, 1, modifiers: ['ctrl', 'Ctrl']), "\x1b[<16;1;1M\x1b[<16;1;1m"];
+        yield 'hover' => [Mouse::move(4, 9), "\x1b[<35;9;4M"];
         yield 'wheel up' => [Mouse::scroll(5, 6, 'up'), "\x1b[<64;6;5M"];
         yield 'wheel down twice' => [Mouse::scroll(5, 6, 'down', 2), "\x1b[<65;6;5M\x1b[<65;6;5M"];
         yield 'wheel right with shift' => [Mouse::scroll(1, 1, 'right', 1, ['shift']), "\x1b[<71;1;1M"];
@@ -118,6 +119,14 @@ final class MouseTest extends TestCase
         $session->scrollElement('#top', 'down', 3);
 
         $this->assertSame(array_fill(0, 3, "\x1b[<65;10;1M"), $this->received);
+    }
+
+    public function testHoveringText(): void
+    {
+        $session = $this->recorder();
+        $session->hoverText('cd');
+
+        $this->assertSame(["\x1b[<35;1;3M"], $this->received);
     }
 
     public function testOffScreen(): void

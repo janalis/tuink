@@ -96,12 +96,25 @@ Your entry point does the same with the real terminal and calls `run()`. The dri
 | `When I click … with "Ctrl+Shift"`                            | Shift, Alt, Ctrl held                                           |
 | `When I scroll down 3 times over "selector"`                  | `up`, `down`, `left`, `right`; or `at line 5, column 12`        |
 | `When I drag "selector" to "selector"`                        | Or `from line 2, column 1 to line 9, column 40`                 |
+| `When I hover [over] "selector"`                              | Or `over the text "…"`, `at line 5, column 12`; motion with no button |
+| `When I fill in "selector" with "text"`                       | Focuses the field, clears its line (End, Ctrl+U), types         |
+| `When I fill in the following:` + table                       | `\| selector \| text \|` rows                                    |
+| `When I select "Blue" from "selector"`                        | Arrows to the item, then Enter                                  |
+| `When I restart the app`                                      | Same terminal size                                              |
 | `When I resize the terminal to 60x20`                         |                                                                 |
 | `When I wait 1.5 seconds`                                     | Lets timers run                                                 |
 | `When I stop the app`                                         |                                                                 |
 | `Then I should see "text"` / `should not see`                 |                                                                 |
 | `Then I should eventually see "text"`                         | Same as `should see`, which already waits; reads better         |
 | `Then I should see text matching "/\d+ files/"`               |                                                                 |
+| `Then I should not see text matching "/…/"`                   |                                                                 |
+| `Then I should see "text" 3 times`                            | Occurrences on the screen                                       |
+| `Then line 3 should not contain "text"`                       |                                                                 |
+| `Then the text "Saved" should [not] be bold`                  | Or `dim`, `italic`, `underlined`, `blinking`, `reversed`, `hidden`, `struck through` |
+| `Then the text "Error" should be colored "red"`               | `red`, `bright red`, a palette index, `#rrggbb`                 |
+| `Then the text "…" should have the background "#1e1e2e"`      |                                                                 |
+| `Then the terminal should have rung the bell [2 times]`       | See [Bell and title](#bell-and-title)                           |
+| `Then the terminal title should be "…"`                       | OSC 0 or 2                                                      |
 | `Then line 3 should contain "text"` / `line 3 should be "…"`  | Lines count from 1; trailing spaces ignored                     |
 | `Then the screen should be:` / `should match:` + doc string   | Trailing spaces and blank lines ignored                         |
 | `Then the region at line 5, column 3 should be:` + doc string | A rectangle as wide and tall as the doc string, by display cell |
@@ -114,8 +127,10 @@ Your entry point does the same with the real terminal and calls `run()`. The dri
 | `Then I should [not] see an element matching "selector"`      | Drawn in the last frame                                         |
 | `Then there should be 3 elements matching "selector"`         | Drawn or not                                                    |
 | `Then the element "selector" should show:` + doc string       | Exactly one match                                               |
+| `Then the element "selector" should [not] contain "text"`     | Same as `I should [not] see "text" in "selector"`               |
+| `Then the "selector" field should [not] contain "text"`       | The field's value                                               |
 | `When I focus [the element] "selector"`                       | Exactly one match                                               |
-| `Then the element "selector" should be focused`               | Any match                                                       |
+| `Then the element "selector" should [not] be focused`         | Any match                                                       |
 | `Then the element "selector" should have the value "text"`    | Exactly one match whose `getValue()` returns a string           |
 
 Every action waits until the app's output has been quiet for `quiet_period`. Every check retries until `timeout`, so a frame that comes late, after an HTTP call or a timer, does not fail the step. A failure prints the screen with its row numbers:
@@ -187,9 +202,17 @@ $tui->run();
 
 The probe does nothing unless the process driver started the application. The driver then sets `TUINK_PROBE` to a Unix socket in a private temporary directory; the probe connects to it and answers the driver's requests for the widget tree, and to focus a widget, from the Revolt event loop. Element text still comes from the screen the driver decoded, so it is what a user would see. Without the probe, selector steps on the `process` driver wait `probe_timeout` once, then fail and say what to do.
 
+### Styles
+
+Style steps read the cells where the screen first shows the text and check every one of them. Colors are named after what the application wrote: `red` or `bright red` for the 16 standard colors (whether written as SGR 31 or as palette index 1), the palette index for the other 240 colors, `#rrggbb` for true color. A failure says what the text has, for instance `bold, #5f87ff`.
+
+### Bell and title
+
+The bell counts BEL characters outside escape sequences; the title is the last one set with OSC 0 or OSC 2. On macOS, Symfony Tui's real terminal plays a sound for the bell instead of writing BEL, so there the `process` driver cannot see it; the `in_process` driver always can.
+
 ### Keys
 
-Names are case-insensitive, with optional angle brackets: `Enter`, `Escape`, `Tab`, `Space`, `Backspace`, `Delete`, `Insert`, `Up`, `Down`, `Left`, `Right`, `Home`, `End`, `PageUp`, `PageDown`, `F1`–`F12`, or any single character. Modifiers join with `+`: `Ctrl+S`, `Shift+Tab`, `Alt+Left`, `Ctrl+Shift+Up`. A combination a terminal cannot send, like `Ctrl+Tab`, is an error rather than a plain `Tab`. In `I send`, a key is a word of two letters or more (`<Enter>`, `<F5>`) or carries a modifier (`<Alt+x>`); `<b>` stays text.
+Names are case-insensitive, with optional angle brackets: `Enter`, `Escape`, `Tab`, `Space`, `Backspace`, `Delete`, `Insert`, `Up`, `Down`, `Left`, `Right`, `Home`, `End`, `PageUp`, `PageDown`, `F1`–`F12`, or any single character. Modifiers join with `+`: `Ctrl+S`, `Shift+Tab`, `Alt+Left`, `Ctrl+Shift+Up`. Combinations without a legacy encoding, like `Ctrl+Tab`, `Shift+Backspace` or `Ctrl+Shift+A`, go in the CSI u form of the kitty keyboard protocol, which the Symfony Tui key parser reads. In `I send`, a key is a word of two letters or more (`<Enter>`, `<F5>`) or carries a modifier (`<Alt+x>`); `<b>` stays text.
 
 ### Snapshots
 

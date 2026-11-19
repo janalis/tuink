@@ -108,23 +108,25 @@ final class KeysTest extends TestCase
     }
 
     /**
-     * @return iterable<int, array{string}>
+     * Combinations without a legacy encoding go as CSI u, which the Tui key parser reads.
+     *
+     * @return iterable<int, array{string, string, string}>
      */
-    public static function unencodable(): iterable
+    public static function csiU(): iterable
     {
-        yield ['Ctrl+Tab'];
-        yield ['Ctrl+Backspace'];
-        yield ['Shift+Backspace'];
-        yield ['Ctrl+Escape'];
-        yield ['Shift+Space'];
+        yield ['Ctrl+Tab', "\x1b[9;5u", 'ctrl+tab'];
+        yield ['Ctrl+Backspace', "\x1b[127;5u", 'ctrl+backspace'];
+        yield ['Shift+Backspace', "\x1b[127;2u", 'shift+backspace'];
+        yield ['Ctrl+Escape', "\x1b[27;5u", 'ctrl+escape'];
+        yield ['Shift+Space', "\x1b[32;2u", 'shift+space'];
+        yield ['Ctrl+Shift+A', "\x1b[97;6u", 'ctrl+shift+a'];
+        yield ['Ctrl+Alt+s', "\x1b[115;7u", 'ctrl+alt+s'];
     }
 
-    #[DataProvider('unencodable')]
-    public function testModifiersAKeyCannotCarryAreRejected(string $name): void
+    #[DataProvider('csiU')]
+    public function testCombinationsWithoutALegacyEncoding(string $name, string $bytes, string $key): void
     {
-        $this->expectException(\InvalidArgumentException::class);
-        $this->expectExceptionMessage('has no terminal encoding');
-
-        Keys::key($name);
+        $this->assertSame($bytes, Keys::key($name));
+        $this->assertTrue((new KeyParser())->matches($bytes, $key), \sprintf('"%s" is not read as "%s".', $name, $key));
     }
 }

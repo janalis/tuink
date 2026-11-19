@@ -56,4 +56,9 @@ interface DriverInterface
     public function pump(float $seconds): bool;
 
     public function getScreen(): ScreenBuffer;
+
+    /**
+     * What the output showed besides cells: bells and the window title.
+     */
+    public function getObserver(): TerminalObserver;
 }

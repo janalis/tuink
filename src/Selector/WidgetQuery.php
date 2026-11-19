@@ -95,6 +95,7 @@ final class WidgetQuery
             classes: '' === $class ? [] : explode(' ', $class),
             label: $node->hasAttribute('label') ? $node->getAttribute('label') : null,
             value: $node->hasAttribute('value') ? $node->getAttribute('value') : null,
+            selected: $node->hasAttribute('selected') ? $node->getAttribute('selected') : null,
             focused: $node->hasAttribute(WidgetTree::FOCUS),
             rect: $rect,
             text: $text,

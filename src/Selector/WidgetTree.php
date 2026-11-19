@@ -21,8 +21,8 @@ use Symfony\Component\Tui\Widget\ParentInterface;
  *  - named after its class, without the "Widget" suffix, in kebab-case:
  *    SelectListWidget is select-list, App\Ui\FileTree is file-tree;
  *  - with the attributes id, class (its style classes), label, value (for
- *    widgets whose getValue() returns a string or a number) and widget (its
- *    class name);
+ *    widgets whose getValue() returns a string or a number), selected (the
+ *    label of the item a list has selected) and widget (its class name);
  *  - with tuink-* attributes for its state and where it was drawn, which
  *    :focus, :visible and the text lookup read.
  *
@@ -112,6 +112,12 @@ final class WidgetTree
         }
         if (null !== $value = self::value($widget)) {
             $node->setAttribute('value', $value);
+        }
+        if (method_exists($widget, 'getSelectedItem')) {
+            $item = $widget->getSelectedItem();
+            if (\is_array($item) && \is_string($item['label'] ?? null)) {
+                $node->setAttribute('selected', $item['label']);
+            }
         }
         if (\in_array('focus', $widget->getStateFlags(), true)) {
             $node->setAttribute(self::FOCUS, '');

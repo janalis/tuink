@@ -40,6 +40,16 @@ final class Mouse
     }
 
     /**
+     * The pointer moving over a cell with no button held, as hovering reports it (mode 1003).
+     */
+    public static function move(int $line, int $column): string
+    {
+        self::check($line, $column);
+
+        return self::report(35, $line, $column, true);
+    }
+
+    /**
      * Wheel notches; terminals report them as presses without release.
      *
      * @param list<string> $modifiers

@@ -31,6 +31,7 @@ final class InProcessDriver implements DriverInterface, WidgetTreeProvider
     private ?VirtualTerminal $terminal = null;
     private ?Tui $tui = null;
     private ?ScreenBuffer $screen = null;
+    private TerminalObserver $observer;
     /** @var array<string, true> Event loop callbacks that existed before the application */
     private array $foreignCallbacks = [];
 
@@ -40,6 +41,7 @@ final class InProcessDriver implements DriverInterface, WidgetTreeProvider
     public function __construct(callable $factory)
     {
         $this->factory = $factory(...);
+        $this->observer = new TerminalObserver();
     }
 
     /**
@@ -93,6 +95,7 @@ final class InProcessDriver implements DriverInterface, WidgetTreeProvider
         $this->terminal = $terminal;
         $this->tui = $tui;
         $this->screen = new ScreenBuffer($columns, $rows);
+        $this->observer = new TerminalObserver();
         $tui->start();
     }
 
@@ -160,6 +163,11 @@ final class InProcessDriver implements DriverInterface, WidgetTreeProvider
         return $this->flushOutput();
     }
 
+    public function getObserver(): TerminalObserver
+    {
+        return $this->observer;
+    }
+
     public function getScreen(): ScreenBuffer
     {
         return $this->screen ?? throw new DriverException('The application is not started.');
@@ -196,6 +204,7 @@ final class InProcessDriver implements DriverInterface, WidgetTreeProvider
             return false;
         }
         $this->screen->write($output);
+        $this->observer->observe($output);
 
         return true;
     }
