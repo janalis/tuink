@@ -7,4 +7,4 @@ Feature: Failures show the screen
   @process
   Scenario: Widget steps need the app in process
     Given I start the app
-    Then the widget "name" should be focused
+    Then the widget "#name" should be focused

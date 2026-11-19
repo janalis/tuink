@@ -16,6 +16,7 @@ use Symfony\Component\Tui\Event\SelectEvent;
 use Symfony\Component\Tui\Event\SubmitEvent;
 use Symfony\Component\Tui\Terminal\TerminalInterface;
 use Symfony\Component\Tui\Tui;
+use Symfony\Component\Tui\Widget\ContainerWidget;
 use Symfony\Component\Tui\Widget\InputWidget;
 use Symfony\Component\Tui\Widget\SelectListWidget;
 use Symfony\Component\Tui\Widget\TextWidget;
@@ -37,20 +38,23 @@ final class DemoApp
         $status = (new TextWidget('Status: loading'))->setId('status');
         $size = (new TextWidget(''))->setId('size');
         $name = (new InputWidget())->setId('name')->setPrompt('Name: ');
-        $greeting = (new TextWidget(''))->setId('greeting');
+        $greeting = (new TextWidget(''))->setId('greeting')->addStyleClass('message');
         $colors = (new SelectListWidget([
             ['value' => 'red', 'label' => 'Red'],
             ['value' => 'green', 'label' => 'Green'],
             ['value' => 'blue', 'label' => 'Blue'],
         ]))->setId('color');
-        $choice = (new TextWidget(''))->setId('choice');
+        $choice = (new TextWidget(''))->setId('choice')->addStyleClass('message');
 
-        $tui->add(new TextWidget('Tuink demo'));
+        $form = (new ContainerWidget())->setId('form');
+        $form->add($name);
+        $form->add($greeting);
+        $form->add($colors);
+
+        $tui->add((new TextWidget('Tuink demo'))->addStyleClass('title'));
         $tui->add($status);
         $tui->add($size);
-        $tui->add($name);
-        $tui->add($greeting);
-        $tui->add($colors);
+        $tui->add($form);
         $tui->add($choice);
         $tui->add(new TextWidget('Enter: submit  Esc: leave  Ctrl+C: quit'));
 

@@ -1,0 +1,192 @@
+<?php
+
+/*
+ * This file is part of the tuink package.
+ *
+ * For the full copyright and license information, please view the LICENSE
+ * file that was distributed with this source code.
+ */
+
+namespace Janalis\Tuink\Tests;
+
+use Janalis\Tuink\Driver\InProcessDriver;
+use Janalis\Tuink\Driver\ProcessDriver;
+use Janalis\Tuink\Example\DemoApp;
+use Janalis\Tuink\Exception\ExpectationException;
+use Janalis\Tuink\Exception\UnsupportedDriverException;
+use Janalis\Tuink\Selector\Element;
+use Janalis\Tuink\Selector\WidgetQuery;
+use Janalis\Tuink\Session;
+use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\TestCase;
+use Symfony\Component\Tui\Terminal\VirtualTerminal;
+use Symfony\Component\Tui\Tui;
+use Symfony\Component\Tui\Widget\ContainerWidget;
+use Symfony\Component\Tui\Widget\SelectListWidget;
+use Symfony\Component\Tui\Widget\TextWidget;
+
+final class WidgetQueryTest extends TestCase
+{
+    private ?Session $session = null;
+
+    protected function tearDown(): void
+    {
+        $this->session?->stop();
+    }
+
+    /**
+     * @return iterable<string, array{string, string}>
+     */
+    public static function names(): iterable
+    {
+        yield 'suffix dropped' => [TextWidget::class, 'text'];
+        yield 'kebab case' => [SelectListWidget::class, 'select-list'];
+        yield 'container' => [ContainerWidget::class, 'container'];
+        yield 'no suffix' => ['App\Ui\FileTree', 'file-tree'];
+        yield 'acronym' => ['App\Ui\HTMLView', 'html-view'];
+        yield 'global class' => ['Sidebar', 'sidebar'];
+        yield 'only the suffix' => ['App\Widget', 'widget'];
+    }
+
+    #[DataProvider('names')]
+    public function testElementName(string $class, string $name): void
+    {
+        $this->assertSame($name, WidgetQuery::elementName($class));
+    }
+
+    /**
+     * @return iterable<string, array{string, list<string>}>
+     */
+    public static function selectors(): iterable
+    {
+        yield 'type' => ['input', ['input#name']];
+        yield 'id' => ['#color', ['select-list#color']];
+        yield 'class' => ['.message', ['text#greeting.message', 'text#choice.message']];
+        yield 'type and class' => ['text.title', ['text.title']];
+        yield 'child' => ['#form > *', ['input#name', 'text#greeting.message', 'select-list#color']];
+        yield 'descendant' => [':root .message', ['text#greeting.message', 'text#choice.message']];
+        yield 'sibling' => ['input + text', ['text#greeting.message']];
+        yield 'not' => ['#form > :not(input)', ['text#greeting.message', 'select-list#color']];
+        yield 'focus' => [':focus', ['input#name']];
+        yield 'visible' => ['.message:visible', []];
+        yield 'contains' => ["text:contains('Status')", ['text#status']];
+        yield 'contains through children' => ["container:contains('Blue')", ['container', 'container#form']];
+        yield 'attribute' => ['[value=""]', ['input#name']];
+        yield 'widget class' => ['[widget$="SelectListWidget"]', ['select-list#color']];
+        yield 'root' => [':root', ['container']];
+        yield 'nth' => ['#form > :nth-child(2)', ['text#greeting.message']];
+        yield 'none' => ['editor', []];
+    }
+
+    /**
+     * @param list<string> $expected
+     */
+    #[DataProvider('selectors')]
+    public function testSelect(string $selector, array $expected): void
+    {
+        $found = $this->demo()->find($selector);
+
+        $this->assertSame($expected, array_map(static fn (Element $e): string => $e->describe(), $found));
+    }
+
+    public function testElementsCarryWhatTheyShow(): void
+    {
+        $session = $this->demo();
+        $session->send('Ada<Enter>');
+
+        [$greeting] = $session->find('#greeting');
+        $this->assertTrue($greeting->isVisible());
+        $this->assertSame('Hello, Ada!', $greeting->text);
+        $this->assertSame(['input#name'], array_map(static fn (Element $e): string => $e->describe(), $session->find('input[value="Ada"]')));
+        $this->assertSame(['select-list#color'], array_map(static fn (Element $e): string => $e->describe(), $session->find('select-list:focus')));
+        $this->assertSame("→ Red\n  Green\n  Blue", $session->find('#color')[0]->text);
+    }
+
+    public function testInvalidSelector(): void
+    {
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage('Invalid CSS selector "input[":');
+
+        $this->demo()->find('input[');
+    }
+
+    public function testUnknownPseudoClass(): void
+    {
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage('Pseudo-class "hover" not supported.');
+
+        $this->demo()->find('input:hover');
+    }
+
+    public function testTheProcessDriverHasNoWidgets(): void
+    {
+        $session = new Session(new ProcessDriver(['true']));
+
+        $this->expectException(UnsupportedDriverException::class);
+        $this->expectExceptionMessage('CSS selectors need the in_process driver');
+        $session->find('input');
+    }
+
+    /**
+     * @return iterable<string, array{\Closure(Session): mixed, string}>
+     */
+    public static function failures(): iterable
+    {
+        yield 'see in, nothing matches' => [static fn (Session $s) => $s->assertSeeIn('editor', 'x'), 'The text "x" was not found in "editor": no element matches it.'];
+        yield 'see in, wrong text' => [static fn (Session $s) => $s->assertSeeIn('#status', 'Goodbye'), "The text \"Goodbye\" was not found in \"#status\". It shows:\ntext#status:\n1 | Status: loading"];
+        yield 'see in, not drawn' => [static fn (Session $s) => $s->assertSeeIn('#greeting', 'Hello'), "It shows:\ntext#greeting.message (not drawn)"];
+        yield 'not see in' => [static fn (Session $s) => $s->assertNotSeeIn('#color', 'Red'), "The text \"Red\" was found in \"#color\":\nselect-list#color:\n1 | → Red"];
+        yield 'count' => [static fn (Session $s) => $s->assertElementCount('.message', 3), '2 elements match ".message", not 3: text#greeting.message, text#choice.message.'];
+        yield 'count none' => [static fn (Session $s) => $s->assertElementCount('editor', 1), 'No element matches "editor", not 1.'];
+        yield 'one, none' => [static fn (Session $s) => $s->findOne('editor'), 'No element matches "editor", one was expected.'];
+        yield 'one, many' => [static fn (Session $s) => $s->findOne('.message'), '2 elements match ".message", one was expected: text#greeting.message, text#choice.message.'];
+        yield 'visible' => [static fn (Session $s) => $s->assertElementVisible('#greeting'), 'No element matching "#greeting" is on the screen.'];
+        yield 'not visible' => [static fn (Session $s) => $s->assertElementNotVisible('input'), 'Elements matching "input" are on the screen: input#name.'];
+        yield 'shows, many' => [static fn (Session $s) => $s->assertElementShows('.message', 'x'), '2 elements match ".message", one was expected: text#greeting.message, text#choice.message.'];
+        yield 'shows, wrong' => [static fn (Session $s) => $s->assertElementShows('#size', 'Size: 1x1'), "The element \"#size\" does not show:\n1 | Size: 1x1\n\nIt shows:\n1 | Size: 80x24"];
+    }
+
+    /**
+     * Messages describe the state at the timeout, not when the wait began.
+     *
+     * @param \Closure(Session): mixed $assertion
+     */
+    #[DataProvider('failures')]
+    public function testFailureMessages(\Closure $assertion, string $message): void
+    {
+        $session = $this->demo(timeout: 0.05);
+
+        try {
+            $assertion($session);
+            $this->fail('An expectation exception was expected.');
+        } catch (ExpectationException $e) {
+            $this->assertStringContainsString($message, $e->getMessage());
+            $this->assertStringContainsString('Screen (80x24, in_process driver, running):', $e->getMessage());
+        }
+    }
+
+    public function testPassingAssertions(): void
+    {
+        $session = $this->demo();
+        $session->assertSeeIn('#form', 'Name:');
+        $session->assertNotSeeIn('#status', 'ready');
+        $session->assertElementCount('#form > *', 3);
+        $session->assertElementVisible('text.title');
+        $session->assertElementNotVisible('.message');
+        $session->assertElementShows('text.title', 'Tuink demo');
+
+        $this->assertSame('#name', '#'.$session->findOne('input')->widget->getId());
+    }
+
+    private function demo(float $timeout = 1.0): Session
+    {
+        $this->session = new Session(
+            new InProcessDriver(static fn (VirtualTerminal $terminal): Tui => (new DemoApp($terminal))->tui),
+            timeout: $timeout,
+            quietPeriod: 0.02,
+        );
+        $this->session->start();
+
+        return $this->session;
+    }
+}

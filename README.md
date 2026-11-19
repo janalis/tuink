@@ -101,9 +101,14 @@ Your entry point does the same with the real terminal and calls `run()`. The dri
 | `Then the app should be running`                              |                                                                 |
 | `Then the app should have exited [with code 2]`               | Exit codes need the `process` driver                            |
 | `Then print the screen`                                       | For debugging                                                   |
-| `When I focus [the widget] "id"`                              | `in_process` only                                               |
-| `Then the widget "id" should be focused`                      | `in_process` only                                               |
-| `Then the widget "id" should have the value "text"`           | `in_process` only, widgets with `getValue()`                    |
+| `Then I should see "text" in "#sidebar .title"`               | `in_process` only; see [CSS selectors](#css-selectors)          |
+| `Then I should not see "text" in "selector"`                  | `in_process` only                                               |
+| `Then I should [not] see an element matching "selector"`      | `in_process` only; drawn in the last frame                      |
+| `Then there should be 3 elements matching "selector"`         | `in_process` only; drawn or not                                 |
+| `Then the element "selector" should show:` + doc string       | `in_process` only; exactly one match                            |
+| `When I focus [the element] "selector"`                       | `in_process` only; exactly one match                            |
+| `Then the element "selector" should be focused`               | `in_process` only                                               |
+| `Then the element "selector" should have the value "text"`    | `in_process` only; exactly one match with `getValue()`          |
 
 Every action waits until the app's output has been quiet for `quiet_period`. Every check retries until `timeout`, so a frame that comes late, after an HTTP call or a timer, does not fail the step. A failure prints the screen with its row numbers:
 
@@ -115,6 +120,40 @@ Screen (80x24, in_process driver, running):
 2 | Status: ready
 …
 ```
+
+### CSS selectors
+
+In process, widgets can be found with CSS selectors. tuink mirrors the widget tree into an XML document and queries it with [symfony/css-selector](https://symfony.com/doc/current/components/css_selector.html), so the whole selector grammar works: combinators, `:not()`, `:nth-child()`, attribute operators. Each widget is an element:
+
+| CSS                        | Matches                                                                                  |
+|----------------------------|------------------------------------------------------------------------------------------|
+| `input`, `select-list`     | The class name without `Widget`, in kebab-case; `App\Ui\FileTree` is `file-tree`         |
+| `#name`                    | `setId('name')`                                                                          |
+| `.sidebar`                 | `addStyleClass('sidebar')`                                                               |
+| `[label="Path"]`           | `setLabel('Path')`                                                                       |
+| `[value="Ada"]`            | Widgets whose `getValue()` returns a string                                              |
+| `[widget$="FileTree"]`     | The fully qualified class name                                                           |
+| `:focus`                   | The focused widget                                                                       |
+| `:visible`                 | Widgets drawn in the last frame                                                          |
+| `:contains("text")`        | Widgets showing the text, children included                                              |
+| `:root`                    | The root container `Tui::add()` adds to                                                  |
+
+A widget's text is what the screen shows inside the rectangle it was drawn in, so `I should see "Saved" in "#status"` reads the screen, not the widget's properties.
+
+```gherkin
+@in_process
+Scenario: The status bar
+  Given I start the app
+  When I press "Ctrl+S"
+  Then I should see "Saved" in "#status-bar .message"
+  And the element "tree:focus" should show:
+    """
+    ▾ src/
+      Kernel.php
+    """
+```
+
+Selectors need the application in the same process; on the `process` driver these steps fail and say to tag the scenario `@in_process`.
 
 ### Keys
 
@@ -183,7 +222,7 @@ final class EditorContext implements TuinkAwareContext
 }
 ```
 
-`Session` also has `type()`, `press()`, `send()`, `paste()`, `resize()`, `settle()`, `getScreenText()`, `getLines()`, `getLine()`, `getRegion()`, `snapshot()`, `dump()` and the `assert*()` methods behind the steps. On the `in_process` driver, `$session->getDriver()->getTui()` returns the application's `Tui`.
+`Session` also has `type()`, `press()`, `send()`, `paste()`, `resize()`, `settle()`, `getScreenText()`, `getLines()`, `getLine()`, `getRegion()`, `snapshot()`, `find()`, `findOne()`, `dump()` and the `assert*()` methods behind the steps. On the `in_process` driver, `$session->getDriver()->getTui()` returns the application's `Tui`.
 
 ## Gotchas
 

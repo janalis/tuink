@@ -16,7 +16,8 @@ use Behat\Step\When;
 use Janalis\Tuink\Driver\InProcessDriver;
 use Janalis\Tuink\Exception\ExpectationException;
 use Janalis\Tuink\Exception\UnsupportedDriverException;
-use Symfony\Component\Tui\Exception\InvalidArgumentException as TuiInvalidArgumentException;
+use Janalis\Tuink\Selector\Element;
+use Janalis\Tuink\Session;
 use Symfony\Component\Tui\Tui;
 use Symfony\Component\Tui\Widget\AbstractWidget;
 
@@ -178,36 +179,73 @@ class TuiContext implements TuinkAwareContext
         echo $this->getSession()->dump(), "\n";
     }
 
-    #[When('/^I focus (?:the widget )?"([^"]+)"$/')]
-    public function focusWidget(string $id): void
+    #[When('/^I focus (?:the (?:widget|element) )?"([^"]+)"$/')]
+    public function focus(string $selector): void
     {
-        $tui = $this->getTui();
-        $tui->setFocus($this->getWidget($tui, $id));
-        $this->getSession()->settle();
+        $session = $this->getSession();
+        $this->getTui()->setFocus($session->findOne($selector)->widget);
+        $session->settle();
     }
 
-    #[Then('the widget :id should be focused')]
-    public function assertWidgetFocused(string $id): void
+    #[Then('/^the (?:widget|element) "([^"]+)" should be focused$/')]
+    public function assertFocused(string $selector): void
     {
+        $session = $this->getSession();
         $tui = $this->getTui();
-        $widget = $this->getWidget($tui, $id);
-        $this->getSession()->waitUntil(
-            static fn (): bool => $tui->getFocus() === $widget,
-            static fn (): string => \sprintf('The widget "%s" is not focused; the focus is on %s.', $id, self::describe($tui->getFocus())),
+        $session->waitUntil(
+            static fn (): bool => [] !== array_filter($session->find($selector), static fn (Element $e): bool => $e->widget === $tui->getFocus()),
+            static fn (): string => \sprintf('No element matching "%s" has the focus; %s has it.', $selector, self::describe($session, $tui->getFocus())),
         );
     }
 
-    #[Then('the widget :id should have the value :value')]
-    public function assertWidgetValue(string $id, string $value): void
+    #[Then('/^the (?:widget|element) "([^"]+)" should have the value "([^"]*)"$/')]
+    public function assertValue(string $selector, string $value): void
     {
-        $widget = $this->getWidget($this->getTui(), $id);
+        $session = $this->getSession();
+        $widget = $session->findOne($selector)->widget;
         if (!method_exists($widget, 'getValue')) {
-            throw new \LogicException(\sprintf('The widget "%s" (%s) has no value.', $id, $widget::class));
+            throw new \LogicException(\sprintf('The element "%s" (%s) has no value.', $selector, $widget::class));
         }
-        $this->getSession()->waitUntil(
+        $session->waitUntil(
             static fn (): bool => $widget->getValue() === $value,
-            static fn (): string => \sprintf('The widget "%s" has the value "%s", not "%s".', $id, (string) $widget->getValue(), $value),
+            static fn (): string => \sprintf('The element "%s" has the value "%s", not "%s".', $selector, (string) $widget->getValue(), $value),
         );
+    }
+
+    #[Then('/^I should see "([^"]*)" in "([^"]+)"$/')]
+    public function assertSeeIn(string $text, string $selector): void
+    {
+        $this->getSession()->assertSeeIn($selector, $text);
+    }
+
+    #[Then('/^I should not see "([^"]*)" in "([^"]+)"$/')]
+    public function assertNotSeeIn(string $text, string $selector): void
+    {
+        $this->getSession()->assertNotSeeIn($selector, $text);
+    }
+
+    #[Then('/^I should see an element matching "([^"]+)"$/')]
+    public function assertElementVisible(string $selector): void
+    {
+        $this->getSession()->assertElementVisible($selector);
+    }
+
+    #[Then('/^I should not see an element matching "([^"]+)"$/')]
+    public function assertElementNotVisible(string $selector): void
+    {
+        $this->getSession()->assertElementNotVisible($selector);
+    }
+
+    #[Then('/^there should be (\d+) elements? matching "([^"]+)"$/')]
+    public function assertElementCount(int $count, string $selector): void
+    {
+        $this->getSession()->assertElementCount($selector, $count);
+    }
+
+    #[Then('/^the element "([^"]+)" should show:$/')]
+    public function assertElementShows(string $selector, PyStringNode $text): void
+    {
+        $this->getSession()->assertElementShows($selector, $text->getRaw());
     }
 
     /**
@@ -223,21 +261,17 @@ class TuiContext implements TuinkAwareContext
         return $driver->getTui();
     }
 
-    private function getWidget(Tui $tui, string $id): AbstractWidget
-    {
-        try {
-            return $tui->getById($id);
-        } catch (TuiInvalidArgumentException $e) {
-            throw new ExpectationException(\sprintf('No widget has the id "%s".', $id), $this->getSession()->dump());
-        }
-    }
-
-    private static function describe(?AbstractWidget $widget): string
+    private static function describe(Session $session, ?AbstractWidget $widget): string
     {
         if (null === $widget) {
             return 'nothing';
         }
+        foreach ($session->find('*') as $element) {
+            if ($element->widget === $widget) {
+                return $element->describe();
+            }
+        }
 
-        return null === $widget->getId() ? $widget::class : \sprintf('"%s" (%s)', $widget->getId(), $widget::class);
+        return $widget::class;
     }
 }

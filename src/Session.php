@@ -10,10 +10,14 @@
 namespace Janalis\Tuink;
 
 use Janalis\Tuink\Driver\DriverInterface;
+use Janalis\Tuink\Driver\InProcessDriver;
 use Janalis\Tuink\Exception\DriverException;
 use Janalis\Tuink\Exception\ExpectationException;
 use Janalis\Tuink\Exception\UnsupportedDriverException;
+use Janalis\Tuink\Selector\Element;
+use Janalis\Tuink\Selector\WidgetQuery;
 use Symfony\Component\String\UnicodeString;
+use Symfony\Component\Tui\Render\WidgetRect;
 
 /**
  * Drives one application run and asserts on what it shows.
@@ -290,6 +294,117 @@ final class Session
     }
 
     /**
+     * The widgets matching a CSS selector, in tree order; see WidgetQuery for what selectors see.
+     *
+     * Widgets live in the application, so this needs the in_process driver.
+     *
+     * @return list<Element>
+     */
+    public function find(string $selector): array
+    {
+        $driver = $this->driver;
+        if (!$driver instanceof InProcessDriver) {
+            throw new UnsupportedDriverException(\sprintf('CSS selectors need the in_process driver, the session runs on "%s"; tag the scenario @in_process.', $driver->getName()));
+        }
+
+        $query = new WidgetQuery(
+            $driver->getTui(),
+            fn (WidgetRect $rect): string => $this->getRegion($rect->row + 1, $rect->col + 1, $rect->columns, $rect->rows),
+        );
+
+        return $query->select($selector);
+    }
+
+    /**
+     * The one widget a selector matches, waiting until there is exactly one.
+     */
+    public function findOne(string $selector): Element
+    {
+        $this->waitUntil(
+            fn (): bool => 1 === \count($this->find($selector)),
+            fn (): string => $this->describeMatches($selector, 'one was expected'),
+        );
+        $found = $this->find($selector);
+        if (1 !== \count($found)) {
+            throw new ExpectationException($this->describeMatches($selector, 'one was expected'), $this->dump());
+        }
+
+        return $found[0];
+    }
+
+    public function assertElementCount(string $selector, int $count): void
+    {
+        $this->waitUntil(
+            fn (): bool => \count($this->find($selector)) === $count,
+            fn (): string => $this->describeMatches($selector, \sprintf('not %d', $count)),
+        );
+    }
+
+    /**
+     * Checks that a widget matching the selector is drawn.
+     */
+    public function assertElementVisible(string $selector): void
+    {
+        $this->waitUntil(
+            fn (): bool => [] !== $this->findVisible($selector),
+            \sprintf('No element matching "%s" is on the screen.', $selector),
+        );
+    }
+
+    /**
+     * Checks that no widget matching the selector is drawn; matching widgets that are not drawn are fine.
+     */
+    public function assertElementNotVisible(string $selector): void
+    {
+        $this->settle();
+        $this->waitUntil(
+            fn (): bool => [] === $this->findVisible($selector),
+            fn (): string => \sprintf('Elements matching "%s" are on the screen: %s.', $selector, self::describeAll($this->findVisible($selector))),
+        );
+    }
+
+    /**
+     * Checks that a widget matching the selector shows the text where it is drawn.
+     */
+    public function assertSeeIn(string $selector, string $text): void
+    {
+        $this->waitUntil(
+            fn (): bool => [] !== $this->findShowing($selector, $text),
+            fn (): string => [] === ($found = $this->find($selector))
+                ? \sprintf('The text "%s" was not found in "%s": no element matches it.', $text, $selector)
+                : \sprintf("The text \"%s\" was not found in \"%s\". It shows:\n%s", $text, $selector, self::showAll($found)),
+        );
+    }
+
+    public function assertNotSeeIn(string $selector, string $text): void
+    {
+        $this->settle();
+        $this->waitUntil(
+            fn (): bool => [] === $this->findShowing($selector, $text),
+            fn (): string => \sprintf("The text \"%s\" was found in \"%s\":\n%s", $text, $selector, self::showAll($this->findShowing($selector, $text))),
+        );
+    }
+
+    /**
+     * Compares what the one widget matching the selector shows, ignoring trailing spaces and blank lines.
+     */
+    public function assertElementShows(string $selector, string $expected): void
+    {
+        $expected = self::normalize($expected);
+        $shown = function () use ($selector): ?string {
+            $found = $this->find($selector);
+
+            return 1 === \count($found) ? self::normalize($found[0]->text) : null;
+        };
+        $this->waitUntil(
+            static fn (): bool => $shown() === $expected,
+            fn (): string => null === ($text = $shown())
+                ? $this->describeMatches($selector, 'one was expected')
+                : \sprintf("The element \"%s\" does not show:\n%s\n\nIt shows:\n%s", $selector, self::number($expected), self::number($text)),
+        );
+    }
+
+    /**
      * The screen as a snapshot stores it: no trailing spaces, no trailing blank lines.
      */
     public function snapshot(): string
@@ -363,6 +478,51 @@ final class Session
         $text = $this->getScreenText();
 
         return \sprintf("Screen (%dx%d, %s driver, %s):\n%s", $this->columns, $this->rows, $this->driver->getName(), $state, '' === $text ? '    (blank)' : self::number($text));
+    }
+
+    /**
+     * @return list<Element>
+     */
+    private function findVisible(string $selector): array
+    {
+        return array_values(array_filter($this->find($selector), static fn (Element $e): bool => $e->isVisible()));
+    }
+
+    /**
+     * @return list<Element>
+     */
+    private function findShowing(string $selector, string $text): array
+    {
+        return array_values(array_filter($this->find($selector), static fn (Element $e): bool => str_contains($e->text, $text)));
+    }
+
+    private function describeMatches(string $selector, string $expectation): string
+    {
+        $found = $this->find($selector);
+
+        return match (\count($found)) {
+            0 => \sprintf('No element matches "%s", %s.', $selector, $expectation),
+            default => \sprintf('%d elements match "%s", %s: %s.', \count($found), $selector, $expectation, self::describeAll($found)),
+        };
+    }
+
+    /**
+     * @param list<Element> $elements
+     */
+    private static function describeAll(array $elements): string
+    {
+        return implode(', ', array_map(static fn (Element $e): string => $e->describe(), $elements));
+    }
+
+    /**
+     * @param list<Element> $elements
+     */
+    private static function showAll(array $elements): string
+    {
+        return implode("\n", array_map(
+            static fn (Element $e): string => $e->describe().($e->isVisible() ? ":\n".self::number(self::normalize($e->text)) : ' (not drawn)'),
+            $elements,
+        ));
     }
 
     private function lineOrEmpty(int $number): string

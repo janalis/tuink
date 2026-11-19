@@ -4,17 +4,17 @@ Feature: Looking inside the application
 
   Scenario: Focus moves on submit
     Given I start the app
-    Then the widget "name" should be focused
+    Then the widget "#name" should be focused
     When I type "Ada"
-    Then the widget "name" should have the value "Ada"
+    Then the widget "#name" should have the value "Ada"
     When I press "Enter"
-    Then the widget "color" should be focused
+    Then the widget "#color" should be focused
 
   Scenario: Focusing a widget
     Given I start the app
-    When I focus "name"
-    Then the widget "name" should be focused
-    When I focus the widget "color"
+    When I focus "#name"
+    Then the widget "#name" should be focused
+    When I focus the widget "#color"
     And I press "Down"
     And I press "Enter"
     Then I should see "You picked Green"
