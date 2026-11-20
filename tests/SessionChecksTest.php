@@ -47,7 +47,7 @@ final class SessionChecksTest extends TestCase
     {
         \putenv(false === $this->ci ? 'CI' : 'CI='.$this->ci);
         \putenv(false === $this->update ? 'TUINK_UPDATE_SNAPSHOTS' : 'TUINK_UPDATE_SNAPSHOTS='.$this->update);
-        $this->session?->stop();
+        $this->session?->close();
         if (null !== $this->directory) {
             \exec('rm -rf '.\escapeshellarg($this->directory));
         }

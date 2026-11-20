@@ -14,6 +14,8 @@ namespace Janalis\Tuink\Tests;
 use Janalis\Tuink\Driver\InProcessDriver;
 use Janalis\Tuink\Example\DemoApp;
 use Janalis\Tuink\Exception\DriverException;
+use Janalis\Tuink\Launch;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use Revolt\EventLoop;
 use Symfony\Component\Tui\Terminal\VirtualTerminal;
@@ -37,6 +39,77 @@ final class InProcessDriverTest extends TestCase
 
         $this->assertFalse($tui->isRunning());
         $this->assertFalse($driver->isStarted());
+    }
+
+    public function testTheFactoryGetsTheResolvedLaunchAndTheEnvironmentIsSetForTheRun(): void
+    {
+        \putenv('TUINK_TEST_SET=before');
+        \putenv('TUINK_TEST_UNSET');
+        /** @var list<array{Launch, list<string|bool>}> $runs What each start's factory saw */
+        $runs = [];
+        $driver = new InProcessDriver(static function (VirtualTerminal $terminal, Launch $launch) use (&$runs): Tui {
+            $runs[] = [$launch, [\getenv('TUINK_TEST_SET'), \getenv('TUINK_TEST_UNSET'), \getenv('TUINK_WORKSPACE'), $terminal->isKittyProtocolActive()]];
+
+            return new Tui(terminal: $terminal);
+        });
+        $this->driver = $driver;
+
+        try {
+            $driver->start(20, rows: 5, launch: new Launch(['%workspace%/a'], ['TUINK_TEST_SET' => 'during', 'TUINK_TEST_UNSET' => '%workspace%'], '/w', kitty: true));
+            $this->assertSame('during', \getenv('TUINK_TEST_SET'));
+            $driver->stop();
+            $after = [\getenv('TUINK_TEST_SET'), \getenv('TUINK_TEST_UNSET'), \getenv('TUINK_WORKSPACE')];
+            // A second run sets and restores again
+            $driver->start(20, rows: 5, launch: new Launch(env: ['TUINK_TEST_SET' => 'again']));
+            $driver->stop();
+
+            $this->assertSame(['before', false, false], $after);
+            $this->assertSame('before', \getenv('TUINK_TEST_SET'));
+            $this->assertEquals(
+                [
+                    [new Launch(['/w/a'], ['TUINK_WORKSPACE' => '/w', 'TUINK_TEST_SET' => 'during', 'TUINK_TEST_UNSET' => '/w'], '/w', kitty: true), ['during', '/w', '/w', true]],
+                    [new Launch(env: ['TUINK_TEST_SET' => 'again']), ['again', false, false, false]],
+                ],
+                $runs,
+            );
+        } finally {
+            \putenv('TUINK_TEST_SET');
+        }
+    }
+
+    /**
+     * @return iterable<string, array{\Closure(VirtualTerminal): mixed, class-string<\Throwable>, string}>
+     */
+    public static function failingFactories(): iterable
+    {
+        yield 'throws' => [static fn () => throw new \RuntimeException('boom'), \RuntimeException::class, 'boom'];
+        yield 'returns something else' => [static fn () => null, DriverException::class, 'The in-process factory must return a "Symfony\Component\Tui\Tui", "null" returned.'];
+        yield 'uses another terminal' => [
+            static fn () => new Tui(terminal: new VirtualTerminal()),
+            DriverException::class,
+            'The in-process factory must build the Tui on the VirtualTerminal it receives.',
+        ];
+    }
+
+    /**
+     * @param \Closure(VirtualTerminal): mixed $factory
+     * @param class-string<\Throwable>       $class
+     */
+    #[DataProvider('failingFactories')]
+    public function testAStartThatFailsRestoresTheEnvironment(\Closure $factory, string $class, string $message): void
+    {
+        $driver = new InProcessDriver($factory);
+        $this->driver = $driver;
+
+        try {
+            $driver->start(20, rows: 5, launch: new Launch(env: ['TUINK_TEST_FAIL' => 'x']));
+            $this->fail('The start was expected to fail.');
+        } catch (\Throwable $e) {
+            $this->assertInstanceOf($class, $e);
+            $this->assertSame($message, $e->getMessage());
+            $this->assertFalse(\getenv('TUINK_TEST_FAIL'));
+            $this->assertFalse($driver->isStarted());
+        }
     }
 
     public function testStopBeforeStartDoesNothing(): void

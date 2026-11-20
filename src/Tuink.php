@@ -64,7 +64,10 @@ final class Tuink
      */
     public static function fromConfig(array $config, string $basePath): self
     {
-        $resolve = static fn (string $path): string => \str_starts_with($path, '/') || \preg_match('~^[A-Za-z]:[\\\\/]~', $path) ? $path : $basePath.'/'.$path;
+        // "%workspace%" becomes an absolute path at start
+        $resolve = static fn (string $path): string => \str_starts_with($path, '/') || \str_starts_with($path, '%workspace%') || \preg_match('~^[A-Za-z]:[\\\\/]~', $path)
+            ? $path
+            : $basePath.'/'.$path;
 
         $drivers = [];
         $quiet = [];
@@ -148,11 +151,11 @@ final class Tuink
     }
 
     /**
-     * Stops the session; the next getSession() starts from scratch.
+     * Stops the session and removes its workspace; the next getSession() starts from scratch.
      */
     public function reset(): void
     {
-        $this->session?->stop();
+        $this->session?->close();
         $this->session = null;
     }
 

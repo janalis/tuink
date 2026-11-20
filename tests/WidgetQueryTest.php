@@ -34,7 +34,7 @@ final class WidgetQueryTest extends TestCase
 
     protected function tearDown(): void
     {
-        $this->session?->stop();
+        $this->session?->close();
     }
 
     /**

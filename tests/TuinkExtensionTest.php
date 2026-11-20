@@ -11,12 +11,20 @@ declare(strict_types=1);
 
 namespace Janalis\Tuink\Tests;
 
+use Behat\Behat\Context\ServiceContainer\ContextExtension;
+use Behat\Testwork\EventDispatcher\ServiceContainer\EventDispatcherExtension;
+use Janalis\Tuink\Context\Argument\TuinkArgumentResolver;
+use Janalis\Tuink\Context\Initializer\TuinkAwareInitializer;
+use Janalis\Tuink\Listener\SessionListener;
 use Janalis\Tuink\ServiceContainer\TuinkExtension;
+use Janalis\Tuink\Tuink;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Config\Definition\Builder\ArrayNodeDefinition;
 use Symfony\Component\Config\Definition\Exception\InvalidConfigurationException;
 use Symfony\Component\Config\Definition\Processor;
+use Symfony\Component\DependencyInjection\ContainerBuilder;
+use Symfony\Component\DependencyInjection\Reference;
 
 final class TuinkExtensionTest extends TestCase
 {
@@ -124,6 +132,62 @@ final class TuinkExtensionTest extends TestCase
         $this->expectException(InvalidConfigurationException::class);
 
         $this->process($config);
+    }
+
+    public function testAProfileCommandReplacesTheDefaultOne(): void
+    {
+        $root = new ArrayNodeDefinition('tuink');
+        new TuinkExtension()->configure($root);
+        $config = new Processor()->process($root->getNode(forceRootNode: true), [
+            ['process' => ['command' => ['php', 'bin/app'], 'env' => ['A' => '1']]],
+            ['default_driver' => 'process', 'process' => ['command' => ['php', 'bin/other'], 'env' => ['B' => '2']]],
+        ]);
+        $process = self::section($config, name: 'process');
+
+        $this->assertSame(['php', 'bin/other'], $process['command']);
+        $this->assertSame(['A' => '1', 'B' => '2'], $process['env']);
+    }
+
+    public function testTheWorkspaceIsNotAContainerParameter(): void
+    {
+        $container = new ContainerBuilder();
+        $container->setParameter('paths.base', value: '/base');
+        /** @var array<string, mixed> $config */
+        $config = $this->process(['process' => ['command' => ['app', '%workspace%/a'], 'cwd' => '%workspace%', 'env' => ['HOME' => '%workspace%/home', 'N' => 1]]]);
+        new TuinkExtension()->load($container, $config);
+
+        // What the compiled container hands the factory: parameters resolved, then "%%" unescaped
+        $bag = $container->getParameterBag();
+        $resolved = \array_map(static fn (mixed $argument): mixed => $bag->unescapeValue($bag->resolveValue($argument)), $container->getDefinition(TuinkExtension::MANAGER_ID)->getArguments());
+        $this->assertSame('/base', $resolved[1]);
+        $process = self::section(self::section($resolved, name: '0'), name: 'process');
+        $this->assertSame(['app', '%workspace%/a'], $process['command']);
+        $this->assertSame('%workspace%', $process['cwd']);
+        $this->assertSame(['HOME' => '%workspace%/home', 'N' => 1], $process['env']);
+    }
+
+    public function testTheServices(): void
+    {
+        $container = new ContainerBuilder();
+        /** @var array<string, mixed> $config */
+        $config = $this->process(['process' => ['command' => 'app']]);
+        new TuinkExtension()->load($container, $config);
+
+        $manager = $container->getDefinition(TuinkExtension::MANAGER_ID);
+        $this->assertSame(Tuink::class, $manager->getClass());
+        $this->assertSame([Tuink::class, 'fromConfig'], $manager->getFactory());
+        $this->assertTrue($manager->isPublic());
+        $services = [
+            'tuink.context_initializer' => [TuinkAwareInitializer::class, ContextExtension::INITIALIZER_TAG],
+            'tuink.argument_resolver' => [TuinkArgumentResolver::class, ContextExtension::ARGUMENT_RESOLVER_TAG],
+            'tuink.session_listener' => [SessionListener::class, EventDispatcherExtension::SUBSCRIBER_TAG],
+        ];
+        foreach ($services as $id => [$class, $tag]) {
+            $definition = $container->getDefinition($id);
+            $this->assertSame($class, $definition->getClass(), $id);
+            $this->assertTrue($definition->hasTag($tag), $id);
+            $this->assertEquals([new Reference(TuinkExtension::MANAGER_ID)], $definition->getArguments(), $id);
+        }
     }
 
     public function testACommandStringIsSplitOnBlanks(): void

@@ -93,6 +93,8 @@ final class TuinkExtension implements Extension
             ->children()
             ->arrayNode('command')
             ->info('The command line, as a list of arguments or a string split on spaces')
+            // A profile's command replaces the default one instead of adding its arguments to it
+            ->performNoDeepMerging()
             ->beforeNormalization()
             ->ifString()
             ->then(static fn (string $command): array => \preg_split('/\s+/', $command, limit: -1, flags: \PREG_SPLIT_NO_EMPTY))
@@ -143,6 +145,12 @@ final class TuinkExtension implements Extension
 
     public function load(ContainerBuilder $container, array $config): void
     {
+        // The container would read "%workspace%" as one of its parameters; it is tuink's, for the scenario's workspace
+        \array_walk_recursive($config, static function (mixed &$value): void {
+            if (\is_string($value)) {
+                $value = \str_replace('%workspace%', replace: '%%workspace%%', subject: $value);
+            }
+        });
         $manager = new Definition(Tuink::class, [$config, '%paths.base%']);
         $manager->setFactory([Tuink::class, 'fromConfig']);
         $manager->setPublic(true);

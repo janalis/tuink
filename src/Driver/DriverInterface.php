@@ -11,6 +11,7 @@ declare(strict_types=1);
 
 namespace Janalis\Tuink\Driver;
 
+use Janalis\Tuink\Launch;
 use Symfony\Component\Tui\Terminal\ScreenBuffer;
 
 /**
@@ -24,7 +25,10 @@ interface DriverInterface
 {
     public function getName(): string;
 
-    public function start(int $columns, int $rows): void;
+    /**
+     * Boots the application with the scenario's arguments, environment and workspace.
+     */
+    public function start(int $columns, int $rows, Launch $launch = new Launch()): void;
 
     /**
      * Stops the application if it still runs and releases its resources.
@@ -60,7 +64,7 @@ interface DriverInterface
     public function getScreen(): ScreenBuffer;
 
     /**
-     * What the output showed besides cells: bells and the window title.
+     * What the output showed besides cells: bells, the title, the clipboard, modes and the cursor shape.
      */
     public function getObserver(): TerminalObserver;
 }

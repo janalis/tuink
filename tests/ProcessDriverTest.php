@@ -15,6 +15,7 @@ use Janalis\Tuink\Driver\ProcessDriver;
 use Janalis\Tuink\Driver\RunningProcess;
 use Janalis\Tuink\Exception\DriverException;
 use Janalis\Tuink\Exception\UnsupportedDriverException;
+use Janalis\Tuink\Launch;
 use Janalis\Tuink\Probe\ProbeServer;
 use Janalis\Tuink\Selector\Element;
 use Janalis\Tuink\Session;
@@ -35,7 +36,7 @@ final class ProcessDriverTest extends TestCase
 
     protected function tearDown(): void
     {
-        $this->session?->stop();
+        $this->session?->close();
     }
 
     public function testTheRealEntryPoint(): void
@@ -310,6 +311,67 @@ final class ProcessDriverTest extends TestCase
         $this->expectException(DriverException::class);
         $this->expectExceptionMessageIsOrContains(\sprintf('Cannot resize the terminal of process %d: %s', $running->process->getPid(), $message));
         $session->getDriver()->resize(columns: 30, rows: 10);
+    }
+
+    public function testTheLaunchReachesTheCommand(): void
+    {
+        $driver = new ProcessDriver(['/bin/sh', '-c', 'printf "%s|%s|%s|%s|%s" "$1" "$2" "$TUINK_A" "$TUINK_B" "$(pwd -P)"; sleep 5', 'sh', '%workspace%/first'], '%workspace%', [
+            'TUINK_A' => '%workspace%/configured',
+            'TUINK_B' => 'configured',
+        ]);
+        $this->session = new Session($driver, 200, 5, 5.0);
+        $this->session->setLaunch(new Launch(['%workspace%/x'], ['TUINK_B' => 'scenario']));
+        $this->session->start();
+        $workspace = $this->session->getWorkspace()->path;
+
+        $this->session->assertSee(\sprintf('%1$s/first|%1$s/x|%1$s/configured|scenario|%1$s', $workspace));
+        $this->addToAssertionCount(1);
+    }
+
+    public function testTheErrorOutputIsTheTerminalToo(): void
+    {
+        $driver = new ProcessDriver(['/bin/sh', '-c', 'echo out; echo err >&2; [ -t 2 ] && echo "stderr is a tty"; sleep 5']);
+        $this->session = new Session($driver, 40, 5, 5.0);
+        $this->session->start();
+
+        $this->session->assertScreenEquals("out\nerr\nstderr is a tty");
+        $this->addToAssertionCount(1);
+    }
+
+    public function testAWorkingDirectoryNamingTheWorkspaceNeedsOne(): void
+    {
+        $driver = new ProcessDriver(['true'], '%workspace%/sub');
+
+        $this->expectException(DriverException::class);
+        $this->expectExceptionMessageIsOrContains('The working directory names the workspace, but the scenario has none.');
+        $driver->start(20, rows: 5);
+    }
+
+    public function testTheKittyKeyboardProtocolQueryIsAnswered(): void
+    {
+        // Two queries, then the two answers, in hexadecimal, then whatever else comes within half a second: nothing;
+        // dd reads a byte at a time, where head would take all the tty has
+        $script = 'stty -icanon -echo; printf "\033[?u\033[?u"; a=$(dd bs=1 count=10 2>/dev/null | od -An -tx1 | tr -d " \n"); stty min 0 time 5; b=$(dd bs=1 count=5 2>/dev/null | od -An -tx1 | tr -d " \n"); printf "got %s rest %s." "$a" "$b"; sleep 5';
+        $driver = new ProcessDriver(['/bin/sh', '-c', $script]);
+        $this->session = new Session($driver, 80, 5, 5.0);
+        $this->session->setLaunch(new Launch(kitty: true));
+        $this->session->start();
+
+        $this->session->assertSee('got 1b5b3f31751b5b3f3175 rest .');
+        $this->addToAssertionCount(1);
+    }
+
+    public function testTheKittyKeyboardProtocolQueryIsLeftUnansweredByDefault(): void
+    {
+        $script = 'stty -icanon -echo; printf "\033[?u"; printf "got %s" "$(head -c 1 | od -An -tx1 | tr -d " \n")"; sleep 5';
+        $driver = new ProcessDriver(['/bin/sh', '-c', $script]);
+        $this->session = new Session($driver, 80, 5, 1.0);
+        $this->session->start();
+        $driver->send('z');
+
+        // Had the query been answered, its first byte would have come back before the z
+        $this->session->assertSee('got 7a');
+        $this->addToAssertionCount(1);
     }
 
     public function testPumpRunsForTheTimeItIsGivenAndSleepsMeanwhile(): void

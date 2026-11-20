@@ -53,9 +53,10 @@ final class RunningProcess
         // The application connects back if its entry point installs TuiProbe
         $probe = ProbeServer::listen($probeTimeout, $isRunning, $idle, $tempDir);
         $input = new InputStream();
-        // The size is set on the pty before exec, so the application reads it from stty as in a real terminal
+        // The size is set on the pty before exec, so the application reads it from stty as in a real terminal; Symfony
+        // Process gives a pty's stderr a pipe of its own, so it is sent to the pty, where a terminal shows it
         $process = new Process(
-            ['/bin/sh', '-c', 'stty cols "$TUINK_COLUMNS" rows "$TUINK_ROWS" 2>/dev/null; printf %s "$(tty)" > "$TUINK_TTY_FILE"; exec "$@"', 'tuink', ...$command],
+            ['/bin/sh', '-c', 'stty cols "$TUINK_COLUMNS" rows "$TUINK_ROWS" 2>/dev/null; printf %s "$(tty)" > "$TUINK_TTY_FILE"; exec "$@" 2>&1', 'tuink', ...$command],
             $cwd,
             [
                 'TERM' => 'xterm-256color',

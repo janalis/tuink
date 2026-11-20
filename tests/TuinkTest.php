@@ -126,6 +126,8 @@ final class TuinkTest extends TestCase
         yield 'windows drive' => ['C:/missing.php', 'C:/missing.php'];
         yield 'windows backslash' => ['C:\\missing.php', 'C:\\missing.php'];
         yield 'a drive letter further in is relative' => ['dir/C:/missing.php', \dirname(__DIR__).'/dir/C:/missing.php'];
+        yield 'the workspace' => ['%workspace%/missing.php', '%workspace%/missing.php'];
+        yield 'the workspace further in is relative' => ['dir/%workspace%/missing.php', \dirname(__DIR__).'/dir/%workspace%/missing.php'];
     }
 
     #[DataProvider('factoryPaths')]
@@ -146,14 +148,16 @@ final class TuinkTest extends TestCase
         $this->assertSame(\dirname(__DIR__).'/var/tmp', new \ReflectionProperty(ProcessDriver::class, 'tempDir')->getValue($driver));
     }
 
-    public function testResetStopsTheApplication(): void
+    public function testResetStopsTheApplicationAndRemovesTheWorkspace(): void
     {
         $tuink = $this->tuink();
         $session = $tuink->getSession();
         $session->start();
+        $workspace = $session->getWorkspace()->path;
         $tuink->reset();
 
         $this->assertFalse($session->getDriver()->isStarted());
+        $this->assertDirectoryDoesNotExist($workspace);
     }
 
     public function testRestoreDefaultsStartsAfresh(): void

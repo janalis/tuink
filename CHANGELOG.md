@@ -19,3 +19,8 @@ Version numbers follow [Semantic Versioning 2.0.0](https://semver.org/spec/v2.0.
 - `@in_process` and `@process` tags switch the driver per scenario or feature.
 - A `process.temp_dir` option for where the probe socket and the terminal name go, for systems whose temporary directory path is too long for a Unix socket.
 - The `Tuink` manager is injected into context constructors that ask for it by type, and into contexts implementing `TuinkAwareContextInterface`.
+- A workspace per scenario: a temporary directory the application finds in `TUINK_WORKSPACE` and steps name `%workspace%`, with steps to write files and directories, delete them, and check the files the application writes.
+- Arguments and environment variables per scenario, given to the in-process factory as a `Launch` and to the process driver's command; a terminal that speaks the kitty keyboard protocol.
+- Frame steps that read, check and click inside the frame whose top border carries a title, and steps for where texts are relative to each other.
+- The process driver puts the application's standard error on the terminal, as a terminal does, so console questions and errors written there show.
+- Terminal state steps: the clipboard (OSC 52), DEC private modes (mouse, bracketed paste, alternate screen, focus events), the cursor's visibility, position and shape, and focus in and out reports.

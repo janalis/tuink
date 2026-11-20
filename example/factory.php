@@ -10,8 +10,9 @@ declare(strict_types=1);
  */
 
 use Janalis\Tuink\Example\DemoApp;
+use Janalis\Tuink\Launch;
 use Symfony\Component\Tui\Terminal\VirtualTerminal;
 use Symfony\Component\Tui\Tui;
 
-// The in-process driver calls this with the terminal to build the Tui on
-return static fn (VirtualTerminal $terminal): Tui => new DemoApp($terminal)->tui;
+// The in-process driver calls this with the terminal to build the Tui on, and what the scenario starts it with
+return static fn (VirtualTerminal $terminal, Launch $launch): Tui => new DemoApp($terminal, $launch->arguments[0] ?? null)->tui;

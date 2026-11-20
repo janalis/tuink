@@ -12,6 +12,7 @@ declare(strict_types=1);
 namespace Janalis\Tuink\Driver;
 
 use Janalis\Tuink\Exception\DriverException;
+use Janalis\Tuink\Launch;
 use Janalis\Tuink\Selector\WidgetTree;
 use Symfony\Component\Process\Process;
 use Symfony\Component\Tui\Terminal\ScreenBuffer;
@@ -31,9 +32,14 @@ final class ProcessDriver implements DriverInterface, WidgetTreeProviderInterfac
     private ?RunningProcess $running = null;
     private ?ScreenBuffer $screen = null;
     private TerminalObserver $observer;
+    private bool $kitty = false;
+    /** How many kitty keyboard protocol queries the driver answered */
+    private int $kittyAnswers = 0;
 
     /**
-     * @param list<string>          $command      The command line, as an argument list
+     * @param list<string>          $command      The command line, as an argument list; a scenario's arguments follow it, and
+     *                                            "%workspace%" in it, as in $cwd and $env, is the scenario's workspace
+     * @param string|null           $cwd          The working directory; "%workspace%" in it is the scenario's workspace
      * @param array<string, string> $env          Extra environment variables
      * @param float                 $probeTimeout Seconds to wait for the application's TuiProbe to connect and answer
      * @param string|null           $tempDir      Where the probe socket and the terminal name go, the system's temporary
@@ -57,7 +63,7 @@ final class ProcessDriver implements DriverInterface, WidgetTreeProviderInterfac
         return 'process';
     }
 
-    public function start(int $columns, int $rows): void
+    public function start(int $columns, int $rows, Launch $launch = new Launch()): void
     {
         if (null !== $this->running) {
             throw new DriverException('The application is already started.');
@@ -66,11 +72,20 @@ final class ProcessDriver implements DriverInterface, WidgetTreeProviderInterfac
             throw new DriverException('The process driver needs pseudo-terminal support, which this system does not have; use the in-process driver.');
         }
 
+        // The configured command and variables come first, and name the workspace as the scenario's do
+        $launch = new Launch([...$this->command, ...$launch->arguments], [...$this->env, ...$launch->env], $launch->workspace, $launch->kitty)->resolved();
+        $cwd = $this->cwd;
+        if (null !== $cwd && \str_contains($cwd, '%workspace%')) {
+            $cwd = \str_replace('%workspace%', replace: $launch->workspace ?? throw new DriverException('The working directory names the workspace, but the scenario has none.'), subject: $cwd);
+        }
+        $this->kitty = $launch->kitty;
+        $this->kittyAnswers = 0;
+        $this->observer = new TerminalObserver();
         // Draining the pty while it waits keeps an application blocked on its output able to answer the probe
         $this->running = RunningProcess::start(
-            $this->command,
-            $this->cwd,
-            $this->env,
+            $launch->arguments,
+            $cwd,
+            $launch->env,
             $columns,
             $rows,
             $this->probeTimeout,
@@ -81,7 +96,6 @@ final class ProcessDriver implements DriverInterface, WidgetTreeProviderInterfac
             $this->tempDir ?? \sys_get_temp_dir(),
         );
         $this->screen = new ScreenBuffer($columns, $rows);
-        $this->observer = new TerminalObserver();
     }
 
     public function stop(): void
@@ -128,6 +142,7 @@ final class ProcessDriver implements DriverInterface, WidgetTreeProviderInterfac
             if ('' !== $output) {
                 $this->getScreen()->write($output);
                 $this->observer->observe($output);
+                $this->answerKittyQueries($running);
                 $wrote = true;
             }
             if (!$running->process->isRunning() || \microtime(true) >= $deadline) {
@@ -155,6 +170,16 @@ final class ProcessDriver implements DriverInterface, WidgetTreeProviderInterfac
     public function focusWidget(int $index): void
     {
         $this->running()->probe->focus($index);
+    }
+
+    /**
+     * Tells the application the terminal speaks the kitty keyboard protocol, as kitty or WezTerm would, when the scenario asked for it.
+     */
+    private function answerKittyQueries(RunningProcess $running): void
+    {
+        for (; $this->kitty && $this->kittyAnswers < $this->observer->getKittyQueryCount(); ++$this->kittyAnswers) {
+            $running->send("\x1b[?1u");
+        }
     }
 
     private function running(): RunningProcess

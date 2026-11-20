@@ -33,23 +33,31 @@ use Symfony\Component\Tui\Tui;
 class TuiContext implements TuinkAwareContextInterface
 {
     use TuinkAwareTrait;
+    use WorkspaceStepsTrait;
+    use TerminalStepsTrait;
 
-    #[Given('I start the app')]
-    public function startApp(): void
+    /**
+     * The arguments follow the configured command; quote one with spaces in single quotes.
+     */
+    #[Given('/^I start the app(?: in an? (\d+)x(\d+) terminal)?(?: with the arguments? "([^"]*)")?$/')]
+    public function startApp(string $columns = '', string $rows = '', string $arguments = ''): void
     {
-        $this->getSession()->start();
+        $session = $this->getSession();
+        if ('' !== $arguments) {
+            $words = [];
+            \preg_match_all("/'([^']*)'|(\\S+)/", $arguments, $words, \PREG_SET_ORDER);
+            $session->setLaunch($session->getLaunch()->withArguments(\array_map(static fn (array $w): string => $w[2] ?? $w[1], $words)));
+        }
+        '' === $columns ? $session->start() : $session->start((int) $columns, (int) $rows);
     }
 
-    #[Given('/^I start the app in an? (\d+)x(\d+) terminal$/')]
-    public function startAppWithSize(int $columns, int $rows): void
-    {
-        $this->getSession()->start($columns, $rows);
-    }
-
+    /**
+     * Stops the application; the workspace stays, so the next steps can check what it saved.
+     */
     #[When('I stop the app')]
     public function stopApp(): void
     {
-        $this->getTuink()->reset();
+        $this->getSession()->stop();
     }
 
     #[When('I type :text')]
@@ -96,6 +104,13 @@ class TuiContext implements TuinkAwareContextInterface
         $this->getSession()->clickText($text, $button, $count, self::modifiers($modifiers));
     }
 
+    #[When('/^I (double-|triple-|right-|middle-)?click on the text "([^"]+)" in the (?:box|frame|dialog|panel|window) "([^"]+)"(?: with "([^"]+)")?$/')]
+    public function clickTextInBox(string $kind, string $text, string $title, string $modifiers = ''): void
+    {
+        [$button, $count] = self::clickKind($kind);
+        $this->getSession()->box($title)->clickText($text, $button, $count, self::modifiers($modifiers));
+    }
+
     #[When('/^I (double-|triple-|right-|middle-)?click at line (\d+), column (\d+)(?: with "([^"]+)")?$/')]
     public function clickAt(string $kind, int $line, int $column, string $modifiers = ''): void
     {
@@ -103,16 +118,16 @@ class TuiContext implements TuinkAwareContextInterface
         $this->getSession()->click($line, $column, $button, $count, self::modifiers($modifiers));
     }
 
-    #[When('/^I scroll (up|down|left|right)(?: (\d+) times?)? (?:in|over) "([^"]+)"$/')]
-    public function scroll(string $direction, int|string $times, string $selector): void
+    #[When('/^I scroll (up|down|left|right)(?: (\d+) times?)? (?:in|over) "([^"]+)"(?: with "([^"]+)")?$/')]
+    public function scroll(string $direction, int|string $times, string $selector, string $modifiers = ''): void
     {
-        $this->getSession()->scrollElement($selector, $direction, '' === $times ? 1 : (int) $times);
+        $this->getSession()->scrollElement($selector, $direction, '' === $times ? 1 : (int) $times, self::modifiers($modifiers));
     }
 
-    #[When('/^I scroll (up|down|left|right)(?: (\d+) times?)? at line (\d+), column (\d+)$/')]
-    public function scrollAt(string $direction, int|string $times, int $line, int $column): void
+    #[When('/^I scroll (up|down|left|right)(?: (\d+) times?)? at line (\d+), column (\d+)(?: with "([^"]+)")?$/')]
+    public function scrollAt(string $direction, int|string $times, int $line, int $column, string $modifiers = ''): void
     {
-        $this->getSession()->scroll($line, $column, $direction, '' === $times ? 1 : (int) $times);
+        $this->getSession()->scroll($line, $column, $direction, '' === $times ? 1 : (int) $times, self::modifiers($modifiers));
     }
 
     #[When('/^I drag "([^"]+)" to "([^"]+)"$/')]

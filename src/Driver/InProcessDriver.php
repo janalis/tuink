@@ -12,6 +12,7 @@ declare(strict_types=1);
 namespace Janalis\Tuink\Driver;
 
 use Janalis\Tuink\Exception\DriverException;
+use Janalis\Tuink\Launch;
 use Janalis\Tuink\Selector\WidgetTree;
 use Revolt\EventLoop;
 use Symfony\Component\Tui\Terminal\ScreenBuffer;
@@ -21,14 +22,15 @@ use Symfony\Component\Tui\Tui;
 /**
  * Runs the application in the test process, on a VirtualTerminal.
  *
- * The factory receives the terminal and returns the application's Tui without
- * starting it. The driver starts it and turns the Revolt event loop in short
+ * The factory receives the terminal and the scenario's Launch, and returns the
+ * application's Tui without starting it. The Launch's variables are set with
+ * putenv() for the run and restored after it. The driver starts it and turns the Revolt event loop in short
  * slices, so timers, intervals and async work progress as they would under
  * Tui::run(), and the Tui itself stays reachable for focus and widget checks.
  */
 final class InProcessDriver implements DriverInterface, WidgetTreeProviderInterface
 {
-    /** @var \Closure(VirtualTerminal): mixed */
+    /** @var \Closure(VirtualTerminal, Launch): mixed */
     private readonly \Closure $factory;
     private ?VirtualTerminal $terminal = null;
     private ?Tui $tui = null;
@@ -36,9 +38,11 @@ final class InProcessDriver implements DriverInterface, WidgetTreeProviderInterf
     private TerminalObserver $observer;
     /** @var array<string, true> Event loop callbacks that existed before the application */
     private array $foreignCallbacks = [];
+    /** @var array<string, string|false> The values putenv() replaced, to restore at stop */
+    private array $replacedEnv = [];
 
     /**
-     * @param callable(VirtualTerminal): mixed $factory Returns the Tui; anything else is reported at start
+     * @param callable(VirtualTerminal, Launch): mixed $factory Returns the Tui; anything else is reported at start
      */
     public function __construct(callable $factory)
     {
@@ -57,7 +61,7 @@ final class InProcessDriver implements DriverInterface, WidgetTreeProviderInterf
     /**
      * Requires a PHP file that returns the factory callable.
      *
-     * @return callable(VirtualTerminal): mixed
+     * @return callable(VirtualTerminal, Launch): mixed
      */
     public static function loadFactory(string $path): callable
     {
@@ -71,7 +75,7 @@ final class InProcessDriver implements DriverInterface, WidgetTreeProviderInterf
     private static function callableFrom(mixed $factory, string $path): callable
     {
         if (!\is_callable($factory)) {
-            throw new DriverException(\sprintf('The in-process factory file "%s" must return a callable(VirtualTerminal): Tui, "%s" returned.', $path, \get_debug_type($factory)));
+            throw new DriverException(\sprintf('The in-process factory file "%s" must return a callable(VirtualTerminal, Launch): Tui, "%s" returned.', $path, \get_debug_type($factory)));
         }
 
         return $factory;
@@ -91,17 +95,29 @@ final class InProcessDriver implements DriverInterface, WidgetTreeProviderInterf
         return 'in_process';
     }
 
-    public function start(int $columns, int $rows): void
+    public function start(int $columns, int $rows, Launch $launch = new Launch()): void
     {
         if (null !== $this->tui) {
             throw new DriverException('The application is already started.');
         }
 
         $this->foreignCallbacks = \array_fill_keys(EventLoop::getIdentifiers(), value: true);
+        $launch = $launch->resolved();
+        foreach ($launch->env as $name => $value) {
+            $this->replacedEnv[$name] = \getenv($name);
+            \putenv($name.'='.$value);
+        }
         $terminal = new VirtualTerminal($columns, $rows);
-        $tui = self::tuiFrom(($this->factory)($terminal));
-        if ($tui->getTerminal() !== $terminal) {
-            throw new DriverException('The in-process factory must build the Tui on the VirtualTerminal it receives.');
+        $terminal->setKittyProtocolActive($launch->kitty);
+        try {
+            $tui = self::tuiFrom(($this->factory)($terminal, $launch));
+            if ($tui->getTerminal() !== $terminal) {
+                throw new DriverException('The in-process factory must build the Tui on the VirtualTerminal it receives.');
+            }
+        } catch (\Throwable $e) {
+            $this->restoreEnv();
+
+            throw $e;
         }
 
         $this->terminal = $terminal;
@@ -130,6 +146,7 @@ final class InProcessDriver implements DriverInterface, WidgetTreeProviderInterf
 
         $this->tui = null;
         $this->terminal = null;
+        $this->restoreEnv();
     }
 
     public function isStarted(): bool
@@ -210,6 +227,14 @@ final class InProcessDriver implements DriverInterface, WidgetTreeProviderInterf
         $this->observer->observe($output);
 
         return true;
+    }
+
+    private function restoreEnv(): void
+    {
+        foreach ($this->replacedEnv as $name => $value) {
+            \putenv(false === $value ? $name : $name.'='.$value);
+        }
+        $this->replacedEnv = [];
     }
 
     private function tui(): Tui

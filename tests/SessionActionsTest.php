@@ -36,7 +36,7 @@ final class SessionActionsTest extends TestCase
 
     protected function tearDown(): void
     {
-        $this->session?->stop();
+        $this->session?->close();
     }
 
     public function testDefaultsSendOneClickOrNotch(): void
@@ -113,6 +113,17 @@ final class SessionActionsTest extends TestCase
         $this->recorder()->hover(line: 2, column: 3);
 
         $this->assertSame(["\x1b[<35;3;2M"], $this->received);
+    }
+
+    public function testFocusEventsSettle(): void
+    {
+        $session = $this->demo();
+        $session->focusTerminal(false);
+
+        // Read at once: the action waited for the frame
+        $this->assertStringContainsString('Window unfocused', $session->getScreenText());
+        $session->focusTerminal();
+        $this->assertStringContainsString('Window focused', $session->getScreenText());
     }
 
     public function testPasteWrapsTheTextInBracketedPasteMarkers(): void

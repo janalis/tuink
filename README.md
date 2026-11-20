@@ -61,9 +61,9 @@ return (new Config())
 | `timeout`           | `2.0`                    | Seconds a step waits for the screen to show what it expects               |
 | `quiet_period`      | `0.02` / `0.05`          | Seconds without output after which the app counts as settled             |
 | `snapshots`         | `features/__snapshots__` | Snapshot directory                                                        |
-| `in_process.factory`| —                        | PHP file returning `callable(VirtualTerminal $terminal): Tui`             |
-| `process.command`   | —                        | Command, as a list or a string split on spaces                            |
-| `process.cwd`       | Behat base path          | Working directory                                                         |
+| `in_process.factory`| —                        | PHP file returning `callable(VirtualTerminal $terminal, Launch $launch): Tui` |
+| `process.command`   | —                        | Command, as a list or a string split on spaces; a profile's replaces the default one |
+| `process.cwd`       | Behat base path          | Working directory; `%workspace%` is the scenario's [workspace](#workspace-arguments-and-environment) |
 | `process.env`       | `{}`                     | Extra environment variables                                               |
 | `process.probe_timeout` | `2.0`                | Seconds to wait for the application's `TuiProbe`                         |
 | `process.temp_dir`  | system temp directory    | Where the probe socket and the terminal name go; keep the path short, as a Unix socket path is limited to about 100 bytes |
@@ -77,11 +77,14 @@ Build the application on the terminal you are given, and do not start it:
 ```php
 // tests/tui-factory.php
 use App\Ui\Application;
+use Janalis\Tuink\Launch;
 use Symfony\Component\Tui\Terminal\VirtualTerminal;
 use Symfony\Component\Tui\Tui;
 
-return static fn (VirtualTerminal $terminal): Tui => Application::build($terminal);
+return static fn (VirtualTerminal $terminal, Launch $launch): Tui => Application::build($terminal, $launch->arguments);
 ```
+
+The `Launch` carries what the scenario starts the application with: its arguments, its environment (already set with `putenv()` while the application runs, and restored after) and its workspace.
 
 Your entry point does the same with the real terminal and calls `run()`. The driver starts the `Tui` and turns the Revolt event loop in short slices, so timers and async work run as they do under `run()`.
 
@@ -91,6 +94,14 @@ Your entry point does the same with the real terminal and calls `run()`. The dri
 |---------------------------------------------------------------|-----------------------------------------------------------------|
 | `Given I start the app`                                       |                                                                 |
 | `Given I start the app in a 100x30 terminal`                  |                                                                 |
+| `Given I start the app with the arguments "%workspace%/src -v"` | After the configured command; `'…'` quotes one with spaces; also `in a 100x30 terminal with …` |
+| `Given the environment variable "HOME" is "%workspace%/home"` | Before the start; see [Workspace](#workspace-arguments-and-environment) |
+| `Given the terminal supports the kitty keyboard protocol`     | Before the start                                                |
+| `Given a file "src/a.php" containing:` + doc string           | In the workspace; also `containing "text"`, `an empty file "…"`, `a directory "…"` |
+| `When I delete "src/a.php"`                                   | Or `remove`; a file or a directory                              |
+| `Then the file "out.txt" should [not] exist`                  | Waits for the app to write it                                   |
+| `Then the file "out.txt" should [not] contain "text"`         |                                                                 |
+| `Then the file "out.txt" should contain exactly:` + doc string | Trailing line breaks ignored                                   |
 | `When I type "text"`                                          | Characters, literally                                           |
 | `When I press "Enter"` / `When I press "Down" 3 times`        | See key names below                                             |
 | `When I send "Ada<Tab>Lovelace<Enter>"`                       | Text and `<Key>` names mixed                                    |
@@ -98,9 +109,10 @@ Your entry point does the same with the real terminal and calls `run()`. The dri
 | `When I click "selector"`                                     | The middle of the one match; see [Mouse](#mouse)                |
 | `When I click on the text "Save"`                             | Its first character, where the screen first shows it            |
 | `When I click at line 5, column 12`                           |                                                                 |
+| `When I click on the text "Open" in the dialog "File"`        | Inside the frame titled "File"; see [Frames](#frames)           |
 | `When I double-click …`, `triple-click`, `right-click`, `middle-click` | Any of the three forms above                           |
 | `When I click … with "Ctrl+Shift"`                            | Shift, Alt, Ctrl held                                           |
-| `When I scroll down 3 times over "selector"`                  | `up`, `down`, `left`, `right`; or `at line 5, column 12`        |
+| `When I scroll down 3 times over "selector"`                  | `up`, `down`, `left`, `right`; or `at line 5, column 12`; `with "Ctrl"` |
 | `When I drag "selector" to "selector"`                        | Or `from line 2, column 1 to line 9, column 40`                 |
 | `When I hover [over] "selector"`                              | Or `over the text "…"`, `at line 5, column 12`; motion with no button |
 | `When I fill in "selector" with "text"`                       | Focuses the field, clears its line (End, Ctrl+U), types         |
@@ -109,10 +121,15 @@ Your entry point does the same with the real terminal and calls `run()`. The dri
 | `When I restart the app`                                      | Same terminal size                                              |
 | `When I resize the terminal to 60x20`                         |                                                                 |
 | `When I wait 1.5 seconds`                                     | Lets timers run                                                 |
-| `When I stop the app`                                         |                                                                 |
+| `When I stop the app`                                         | The workspace stays, to check what the app saved                |
+| `When the terminal loses focus` / `gains [the] focus`         | Focus reports (`ESC [ O`, `ESC [ I`)                            |
 | `Then I should see "text"` / `should not see`                 |                                                                 |
 | `Then I should eventually see "text"`                         | Same as `should see`, which already waits; reads better         |
 | `Then I should see text matching "/\d+ files/"`               |                                                                 |
+| `Then I should see "Name" above "Email"`                      | Or `below`, `before`, `after` (reading order)                   |
+| `Then I should [not] see the dialog "File"`                   | `box`, `frame`, `dialog`, `panel` and `window` are the same     |
+| `Then I should [not] see "text" in the dialog "File"`         | Inside the frame only                                           |
+| `Then the dialog "File" should show:` + doc string            | The inside of the frame                                         |
 | `Then I should not see text matching "/…/"`                   |                                                                 |
 | `Then I should see "text" 3 times`                            | Occurrences on the screen                                       |
 | `Then line 3 should not contain "text"`                       |                                                                 |
@@ -121,6 +138,12 @@ Your entry point does the same with the real terminal and calls `run()`. The dri
 | `Then the text "…" should have the background "#1e1e2e"`      |                                                                 |
 | `Then the terminal should have rung the bell [2 times]`       | See [Bell and title](#bell-and-title)                           |
 | `Then the terminal title should be "…"`                       | OSC 0 or 2                                                      |
+| `Then the clipboard should contain "text"` / `should be:`     | What the app last copied with OSC 52                            |
+| `Then nothing should have been copied to the clipboard`       |                                                                 |
+| `Then the "bracketed paste" mode should be on`                | Or `off`; see [Terminal state](#clipboard-modes-and-cursor)     |
+| `Then the cursor should be visible` / `hidden`                | The terminal's cursor                                           |
+| `Then the cursor should be at line 4, column 7`               |                                                                 |
+| `Then the cursor should be a blinking bar`                    | `[blinking] block`, `underline`, `bar`                          |
 | `Then line 3 should contain "text"` / `line 3 should be "…"`  | Lines count from 1; trailing spaces ignored                     |
 | `Then the screen should be:` / `should match:` + doc string   | Trailing spaces and blank lines ignored                         |
 | `Then the region at line 5, column 3 should be:` + doc string | A rectangle as wide and tall as the doc string, by display cell |
@@ -212,6 +235,49 @@ The probe does nothing unless the process driver started the application. The dr
 
 Style steps read the cells where the screen first shows the text and check every one of them. Colors are named after what the application wrote: `red` or `bright red` for the 16 standard colors (whether written as SGR 31 or as palette index 1), the palette index for the other 240 colors, `#rrggbb` for true color. A failure says what the text has, for instance `bold, #5f87ff`.
 
+### Workspace, arguments and environment
+
+Each scenario has a workspace: a fresh temporary directory, removed after the scenario. File steps write and read there, by paths relative to it; a path cannot leave it. The application finds it in `TUINK_WORKSPACE`, and `%workspace%` names it in the scenario's arguments and variables, and in `process.command`, `process.cwd` and `process.env`. It survives `I stop the app` and `I restart the app`, so a scenario can quit the application and check what it saved, or start it again on the same files.
+
+```gherkin
+Scenario: Saving
+  Given a file "src/Kernel.php" containing:
+    """
+    <?php
+    """
+  And the environment variable "HOME" is "%workspace%/home"
+  And I start the app with the arguments "%workspace%/src/Kernel.php"
+  When I type "// edited"
+  And I press "Ctrl+S"
+  Then the file "src/Kernel.php" should contain "// edited"
+```
+
+Variables set by a scenario come after `process.env`. In process, they are set with `putenv()`, so the application reads them with `getenv()`. On the `process` driver, the application's standard error goes to the terminal too, as in a real one, so a console question it asks before its first frame shows on the screen.
+
+### Frames
+
+Dialogs and panels are often drawn as a frame with a title on its top border:
+
+```
+╭─ Open file ──────────╮
+│ src/Kernel.php       │
+╰──────────────────────╯
+```
+
+Frame steps find the first frame whose top border carries the title, in any box-drawing style, and look only inside it: `I should see "Kernel.php" in the dialog "Open file"` fails when the dialog lists nothing even if the editor behind it shows the name. `I click on the text "…" in the dialog "…"` clicks inside it, so a step needs no coordinates.
+
+### Clipboard, modes and cursor
+
+What the application tells the terminal besides its cells:
+
+- the clipboard is the text of the last OSC 52 write (`ESC ] 52 ; c ; <base64> BEL`);
+- a mode is on when the application set one of its DEC private modes: `alternate screen` (1049, 1047, 47), `mouse clicks` (1000, 1002, 1003), `mouse drags` (1002, 1003), `mouse motion` (1003), `SGR mouse` (1006), `bracketed paste` (2004), `focus events` (1004);
+- the cursor is visible until the application hides it (`ESC [ ? 25 l`); its position is where the terminal's cursor is, which Symfony Tui moves to the focused input; its shape is the last DECSCUSR (`ESC [ 5 SP q`).
+
+`VirtualTerminal` turns on no mode itself, so on the `in_process` driver a mode is on only when the application writes it; the real terminal of the `process` driver turns on bracketed paste.
+
+With `the terminal supports the kitty keyboard protocol`, the `in_process` driver marks its `VirtualTerminal` as speaking it, and the `process` driver answers the application's query (`ESC [ ? u`) as kitty does, so Symfony Tui switches the protocol on.
+
 ### Bell and title
 
 The bell counts BEL characters outside escape sequences; the title is the last one set with OSC 0 or OSC 2. On macOS, Symfony Tui's real terminal plays a sound for the bell instead of writing BEL, so there the `process` driver cannot see it; the `in_process` driver always can.
@@ -230,11 +296,11 @@ TUINK_UPDATE_SNAPSHOTS=1 vendor/bin/behat
 
 ### Choosing the driver
 
-Tag a feature or scenario `@in_process` or `@process`; a scenario tag wins over a feature tag. To run the whole suite on the other driver, add a profile:
+Tag a feature or scenario `@in_process` or `@process`; a scenario tag wins over a feature tag. To run the whole suite on the other driver, add a profile; it inherits the default profile's settings:
 
 ```php
 ->withProfile((new Profile('process'))
-    ->withExtension(new Extension(TuinkExtension::class, ['default_driver' => 'process'] + $settings)))
+    ->withExtension(new Extension(TuinkExtension::class, ['default_driver' => 'process'])))
 ```
 
 ```bash

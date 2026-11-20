@@ -45,7 +45,7 @@ final class SessionTest extends TestCase
     {
         \putenv(false === $this->ci ? 'CI' : 'CI='.$this->ci);
         \putenv(false === $this->update ? 'TUINK_UPDATE_SNAPSHOTS' : 'TUINK_UPDATE_SNAPSHOTS='.$this->update);
-        $this->session?->stop();
+        $this->session?->close();
         if (null !== $this->snapshotDir && \is_dir($this->snapshotDir)) {
             $files = new \RecursiveIteratorIterator(new \RecursiveDirectoryIterator($this->snapshotDir, \FilesystemIterator::SKIP_DOTS), \RecursiveIteratorIterator::CHILD_FIRST);
             foreach ($files as $file) {

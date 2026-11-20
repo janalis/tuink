@@ -11,6 +11,9 @@ declare(strict_types=1);
 
 namespace Janalis\Tuink;
 
+use Janalis\Tuink\Check\BoxChecks;
+use Janalis\Tuink\Check\FileChecks;
+use Janalis\Tuink\Check\TerminalChecks;
 use Janalis\Tuink\Driver\DriverInterface;
 use Janalis\Tuink\Driver\WidgetTreeProviderInterface;
 use Janalis\Tuink\Exception\DriverException;
@@ -31,6 +34,9 @@ use Symfony\Component\Tui\Render\WidgetRect;
  */
 final class Session
 {
+    private Launch $launch;
+    private ?Workspace $workspace = null;
+
     public function __construct(
         private readonly DriverInterface $driver,
         private int $columns = 80,
@@ -39,6 +45,31 @@ final class Session
         private readonly float $quietPeriod = 0.05,
         private readonly ?string $snapshotDir = null,
     ) {
+        $this->launch = new Launch();
+    }
+
+    /**
+     * The arguments, environment and terminal features the next start uses.
+     */
+    public function getLaunch(): Launch
+    {
+        return $this->launch;
+    }
+
+    /**
+     * Sets what the next start uses; "%workspace%" in arguments and variables is the workspace's path.
+     */
+    public function setLaunch(Launch $launch): void
+    {
+        $this->launch = $launch;
+    }
+
+    /**
+     * The scenario's directory of files, created on first use; it outlives restarts and goes away with close().
+     */
+    public function getWorkspace(): Workspace
+    {
+        return $this->workspace ??= Workspace::create();
     }
 
     public function getDriver(): DriverInterface
@@ -76,7 +107,7 @@ final class Session
     {
         $this->columns = $columns ?? $this->columns;
         $this->rows = $rows ?? $this->rows;
-        $this->driver->start($this->columns, $this->rows);
+        $this->driver->start($this->columns, $this->rows, $this->launch->withWorkspace($this->getWorkspace()->path));
         $this->settleFrom(null);
     }
 
@@ -85,6 +116,50 @@ final class Session
         if ($this->driver->isStarted()) {
             $this->driver->stop();
         }
+    }
+
+    /**
+     * Stops the application and removes the workspace, at the end of a scenario.
+     */
+    public function close(): void
+    {
+        $this->stop();
+        $this->workspace?->destroy();
+        $this->workspace = null;
+    }
+
+    /**
+     * Checks on the files of the workspace.
+     */
+    public function files(): FileChecks
+    {
+        return new FileChecks($this);
+    }
+
+    /**
+     * Checks on what the application told the terminal: clipboard, modes, cursor.
+     */
+    public function terminal(): TerminalChecks
+    {
+        return new TerminalChecks($this);
+    }
+
+    /**
+     * Reads, checks and clicks inside the frame whose top border carries the title.
+     */
+    public function box(string $title): BoxChecks
+    {
+        return new BoxChecks($this, $title);
+    }
+
+    /**
+     * Tells the application the terminal window gained or lost the focus, as a terminal does once focus events are on.
+     */
+    public function focusTerminal(bool $focused = true): void
+    {
+        $this->ensureRunning();
+        $this->driver->send($focused ? "\x1b[I" : "\x1b[O");
+        $this->settle();
     }
 
     public function isStarted(): bool
@@ -173,21 +248,26 @@ final class Session
     /**
      * Turns the wheel over a cell.
      */
-    public function scroll(int $line, int $column, string $direction, int $notches = 1): void
+    /**
+     * @param list<string> $modifiers Shift, Alt, Ctrl
+     */
+    public function scroll(int $line, int $column, string $direction, int $notches = 1, array $modifiers = []): void
     {
         $this->ensureRunning();
         $this->checkOnScreen($line, $column);
-        $this->driver->send(Mouse::scroll($line, $column, $direction, $notches));
+        $this->driver->send(Mouse::scroll($line, $column, $direction, $notches, $modifiers));
         $this->settle();
     }
 
     /**
      * Turns the wheel over the middle of the one widget matching the selector.
+     *
+     * @param list<string> $modifiers
      */
-    public function scrollElement(string $selector, string $direction, int $notches = 1): void
+    public function scrollElement(string $selector, string $direction, int $notches = 1, array $modifiers = []): void
     {
         [$line, $column] = $this->elementCenter($selector);
-        $this->scroll($line, $column, $direction, $notches);
+        $this->scroll($line, $column, $direction, $notches, $modifiers);
     }
 
     /**
@@ -305,6 +385,56 @@ final class Session
     public function settle(): void
     {
         $this->settleFrom(\microtime(true));
+    }
+
+    /**
+     * The screen as cells, by 0-based row and column: one string per cell, '' where a wide character's second half sits.
+     *
+     * @return list<list<string>>
+     */
+    public function getGrid(): array
+    {
+        $cells = $this->driver->getScreen()->getCells();
+        $grid = [];
+        for ($row = 0; $row < $this->rows; ++$row) {
+            $line = [];
+            for ($col = 0; $col < $this->columns; ++$col) {
+                $line[] = $cells[$row][$col]['char'] ?? ' ';
+            }
+            $grid[] = $line;
+        }
+
+        return $grid;
+    }
+
+    /**
+     * Checks where a text shows relative to another: "above", "below", "before" or "after" in reading order.
+     */
+    public function assertOrder(string $text, string $relation, string $other): void
+    {
+        if (!\in_array($relation, ['above', 'below', 'before', 'after'], strict: true)) {
+            throw new \InvalidArgumentException(\sprintf('Unknown relation "%s"; use above, below, before, after.', $relation));
+        }
+        $where = fn (string $needle): string => null === ($at = $this->locate($needle)) ? 'nowhere' : \sprintf('at line %d, column %d', ...$at);
+        $this->waitUntil(
+            function () use ($text, $relation, $other): bool {
+                $at = $this->locate($text);
+                $otherAt = $this->locate($other);
+                if (null === $at || null === $otherAt) {
+                    return false;
+                }
+                // Reading order: by line, then by column
+                $order = $at <=> $otherAt;
+
+                return match ($relation) {
+                    'above' => $at[0] < $otherAt[0],
+                    'below' => $at[0] > $otherAt[0],
+                    'before' => -1 === $order,
+                    default => 1 === $order,
+                };
+            },
+            static fn (): string => \sprintf('The text "%s" is not %s "%s": it is %s, and "%s" %s.', $text, $relation, $other, $where($text), $other, $where($other)),
+        );
     }
 
     /**

@@ -13,17 +13,16 @@ use Janalis\Tuink\Probe\TuiProbe;
 
 require dirname(__DIR__, 2).'/vendor/autoload.php';
 
-$app = new DemoApp();
+$app = new DemoApp(file: $argv[1] ?? null);
 // Lets tuink's process driver read the widgets; a no-op outside its tests
 if (class_exists(TuiProbe::class)) {
     TuiProbe::install($app->tui);
 }
-// Ask the terminal for SGR mouse reports while the demo runs
-echo "\x1b[?1000h\x1b[?1002h\x1b[?1006h";
 try {
     $app->tui->run();
 } finally {
-    echo "\x1b[?1006l\x1b[?1002l\x1b[?1000l";
+    // The demo asked for mouse and focus reports; give the terminal back as it was
+    echo "\x1b[?1004l\x1b[?1006l\x1b[?1002l\x1b[?1000l";
 }
 
 exit($app->exitCode);

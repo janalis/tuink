@@ -29,9 +29,19 @@ use Symfony\Component\Tui\Widget\TextWidget;
  * A small form the self-tests drive: a name, a color, a status set by a timer.
  *
  * Ctrl+C quits with code 0, Escape in the color list with code 2; Ctrl+G rings the bell.
+ * Ctrl+S saves the name to the file given at start, which the name is read from;
+ * Ctrl+Y copies it to the clipboard; F1 shows a framed help whose lines can be clicked.
  */
 final class DemoApp
 {
+    private const HELP = <<<'HELP'
+        ╭─ Help ──────────────╮
+        │ Ctrl+S  save name   │
+        │ Ctrl+Y  copy name   │
+        │ F1      close help  │
+        ╰─────────────────────╯
+        HELP;
+
     private const ITEMS = [
         ['value' => 'red', 'label' => 'Red'],
         ['value' => 'green', 'label' => 'Green'],
@@ -44,16 +54,23 @@ final class DemoApp
     private readonly TextWidget $greeting;
     private readonly SelectListWidget $colors;
     private readonly TextWidget $choice;
-    /** @var list<array{value: string, label: string}> */
-    private readonly array $items;
     /** @var array{float, array{int, int}}|null When and where the last left press on the name field was */
     private ?array $lastPress = null;
     private bool $dragging = false;
+    private readonly TextWidget $status;
+    private readonly TextWidget $help;
 
-    public function __construct(?TerminalInterface $terminal = null)
-    {
+    /**
+     * @param string|null $file Where Ctrl+S saves the name, and where it is read from at start
+     */
+    public function __construct(
+        ?TerminalInterface $terminal = null,
+        private readonly ?string $file = null,
+    ) {
         $this->tui = new Tui(terminal: $terminal);
         $tui = $this->tui;
+        // SGR mouse reports, and focus in and out
+        $tui->getTerminal()->write("\x1b[?1000h\x1b[?1002h\x1b[?1006h\x1b[?1004h");
 
         $status = new TextWidget('Status: loading')->setId('status');
         $size = new TextWidget('')->setId('size');
@@ -63,16 +80,19 @@ final class DemoApp
         $greeting = new TextWidget('')
             ->setId('greeting')
             ->addStyleClass('message');
-        $items = self::ITEMS;
-        $colors = new SelectListWidget($items)->setId('color');
+        $colors = new SelectListWidget(self::ITEMS)->setId('color');
         $choice = new TextWidget('')
             ->setId('choice')
             ->addStyleClass('message');
+        if (null !== $file && \is_file($file)) {
+            $name->setValue(\trim((string) \file_get_contents($file)));
+        }
+        $this->status = $status;
+        $this->help = new TextWidget('')->setId('help');
         $this->name = $name;
         $this->greeting = $greeting;
         $this->colors = $colors;
         $this->choice = $choice;
-        $this->items = $items;
 
         $form = new ContainerWidget()->setId('form');
         $form->add($name);
@@ -90,9 +110,10 @@ final class DemoApp
         $tui->add($form);
         $tui->add($choice);
         $tui->add(new TextWidget('Enter: submit  Esc: leave  Ctrl+C: quit')->setStyle(new Style(background: '#303030')));
+        $tui->add($this->help);
 
         $name->onSubmit(static function (SubmitEvent $event) use ($tui, $greeting, $colors): void {
-            $greeting->setText(\sprintf('Hello, %s!', $event->getValue()));
+            $greeting->setText(self::greet($event->getValue()));
             if ('' !== $event->getValue()) {
                 $tui->getTerminal()->setTitle(\sprintf('Tuink demo: %s', $event->getValue()));
             }
@@ -118,9 +139,11 @@ final class DemoApp
                 $tui->getTerminal()->bell();
             }
         });
+        $this->handleKeys();
         $this->handleMouse();
         $tui->onTick(static function () use ($tui, $size): void {
-            $text = \sprintf('Size: %dx%d', $tui->getTerminal()->getColumns(), $tui->getTerminal()->getRows());
+            $terminal = $tui->getTerminal();
+            $text = \sprintf('Size: %dx%d%s', $terminal->getColumns(), $terminal->getRows(), $terminal->isKittyProtocolActive() ? '  kitty keys' : '');
             if ($text !== $size->getText()) {
                 $size->setText($text);
             }
@@ -133,6 +156,61 @@ final class DemoApp
         });
 
         $tui->setFocus($name);
+    }
+
+    /**
+     * Ctrl+S saves, Ctrl+Y copies, F1 toggles the help; the terminal's focus reports show in the message line.
+     */
+    private function handleKeys(): void
+    {
+        $this->tui->addListener(function (InputEvent $event): void {
+            $action = match ($event->getData()) {
+                "\x13" => $this->save(...),
+                "\x19" => $this->copy(...),
+                "\x1bOP" => $this->toggleHelp(...),
+                "\x1b[I" => fn () => $this->choice->setText('Window focused'),
+                "\x1b[O" => fn () => $this->choice->setText('Window unfocused'),
+                default => null,
+            };
+            if (null !== $action) {
+                $event->stopPropagation();
+                $action();
+                $this->tui->requestRender();
+            }
+        });
+    }
+
+    /**
+     * The greeting word comes from DEMO_GREETING, "Hello" by default.
+     */
+    private static function greet(string $name): string
+    {
+        $word = \getenv('DEMO_GREETING');
+
+        return \sprintf('%s, %s!', false === $word || '' === $word ? 'Hello' : $word, $name);
+    }
+
+    private function save(): void
+    {
+        if (null === $this->file) {
+            $this->status->setText('Status: nowhere to save');
+
+            return;
+        }
+        \file_put_contents($this->file, $this->name->getValue()."\n");
+        $this->status->setText(\sprintf('Status: saved to %s', \basename($this->file)));
+    }
+
+    private function copy(): void
+    {
+        // OSC 52: the terminal puts the text on the system clipboard
+        $this->tui->getTerminal()->write("\x1b]52;c;".\base64_encode($this->name->getValue())."\x07");
+        $this->status->setText('Status: copied');
+    }
+
+    private function toggleHelp(): void
+    {
+        $this->help->setText('' === $this->help->getText() ? self::HELP : '');
     }
 
     /**
@@ -193,8 +271,19 @@ final class DemoApp
 
             return;
         }
+        $line = $this->within($this->help, $row, $column);
+        if (null !== $line) {
+            match ($line) {
+                1 => $this->save(),
+                2 => $this->copy(),
+                3 => $this->toggleHelp(),
+                default => null,
+            };
+
+            return;
+        }
         $offset = $this->within($this->colors, $row, $column);
-        $item = null === $offset ? null : $this->items[$offset] ?? null;
+        $item = null === $offset ? null : self::ITEMS[$offset] ?? null;
         if (null === $offset || null === $item) {
             return;
         }
@@ -220,8 +309,8 @@ final class DemoApp
         if (null === $this->within($this->colors, $row, $column)) {
             return;
         }
-        $index = (int) \array_search($this->colors->getSelectedItem()['value'] ?? null, \array_column($this->items, column_key: 'value'), strict: true);
-        $this->colors->setSelectedIndex(\max(0, \min(\count($this->items) - 1, $index + $step)));
+        $index = (int) \array_search($this->colors->getSelectedItem()['value'] ?? null, \array_column(self::ITEMS, column_key: 'value'), strict: true);
+        $this->colors->setSelectedIndex(\max(0, \min(\count(self::ITEMS) - 1, $index + $step)));
     }
 
     private function clickName(int $row, int $column): void
@@ -231,7 +320,7 @@ final class DemoApp
         $this->lastPress = [$now, [$row, $column]];
         $this->tui->setFocus($this->name);
         if ($double) {
-            $this->greeting->setText(\sprintf('Hello, %s!', $this->name->getValue()));
+            $this->greeting->setText(self::greet($this->name->getValue()));
             $this->tui->setFocus($this->colors);
         }
     }

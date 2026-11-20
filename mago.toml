@@ -48,12 +48,13 @@ integrations = ["phpunit"]
 [linter.rules]
 # A ratchet at today's maximums, not a target: Session is the facade every step
 # goes through and TuiContext the step catalog, so both are wide by design;
-# Element carries one value per attribute a selector can read. Lower these
+# Element carries one value per attribute a selector can read. New families of
+# checks go to src/Check, which Session only hands out (files(), terminal(), box()). Lower these
 # when the code allows; raise them only with a reason in the commit.
-cyclomatic-complexity = { threshold = 82 }
-too-many-methods = { threshold = 78 }
+cyclomatic-complexity = { threshold = 91 }
+too-many-methods = { threshold = 87 }
 excessive-parameter-list = { threshold = 12 }
-kan-defect = { threshold = 4 }
+kan-defect = { threshold = 5 }
 halstead = { volume-threshold = 1189, effort-threshold = 8471, difficulty-threshold = 14 }
 assertion-style = { style = "this" }
 interface-name = { psr = true }
