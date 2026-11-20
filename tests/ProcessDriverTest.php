@@ -288,6 +288,30 @@ final class ProcessDriverTest extends TestCase
         $session->getDriver()->resize(columns: 30, rows: 10);
     }
 
+    /**
+     * @return iterable<string, array{\Closure(string): bool, string}>
+     */
+    public static function unknownTerminalNames(): iterable
+    {
+        yield 'not written yet' => [static fn (string $file): bool => false !== \file_put_contents($file, data: ''), 'its name is unknown (not written yet).'];
+        yield 'removed' => [static fn (string $file): bool => \unlink($file), 'its name is unknown (file_get_contents('];
+    }
+
+    /**
+     * @param \Closure(string): bool $break
+     */
+    #[DataProvider('unknownTerminalNames')]
+    public function testResizingWithoutTheTerminalName(\Closure $break, string $message): void
+    {
+        $session = $this->demo();
+        $running = self::runningProcess(new \ReflectionProperty(ProcessDriver::class, 'running')->getValue($session->getDriver()));
+        $break(self::string(new \ReflectionProperty(RunningProcess::class, 'ttyFile')->getValue($running)));
+
+        $this->expectException(DriverException::class);
+        $this->expectExceptionMessageIsOrContains(\sprintf('Cannot resize the terminal of process %d: %s', $running->process->getPid(), $message));
+        $session->getDriver()->resize(columns: 30, rows: 10);
+    }
+
     public function testPumpRunsForTheTimeItIsGivenAndSleepsMeanwhile(): void
     {
         $driver = new ProcessDriver(['/bin/sh', '-c', 'sleep 5']);

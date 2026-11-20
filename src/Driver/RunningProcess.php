@@ -103,7 +103,10 @@ final class RunningProcess
     {
         $pid = $this->process->getPid() ?? throw new DriverException('Cannot resize: the application is not running.');
 
-        $tty = (string) \file_get_contents($this->ttyFile);
+        [$tty, $warning] = Warnings::capture(fn (): string|false => \file_get_contents($this->ttyFile));
+        if (false === $tty || '' === $tty) {
+            throw new DriverException(\sprintf('Cannot resize the terminal of process %d: its name is unknown (%s).', $pid, $warning ?? 'not written yet'));
+        }
         $out = [];
         $code = null;
         $flag = 'Darwin' === \PHP_OS_FAMILY ? '-f' : '-F';
