@@ -94,7 +94,7 @@ Your entry point does the same with the real terminal and calls `run()`. The dri
 |---------------------------------------------------------------|-----------------------------------------------------------------|
 | `Given I start the app`                                       |                                                                 |
 | `Given I start the app in a 100x30 terminal`                  |                                                                 |
-| `Given I start the app with the arguments "%workspace%/src -v"` | After the configured command; `'…'` quotes one with spaces; also `in a 100x30 terminal with …` |
+| `Given I start the app with the arguments "%workspace%/src -v"` | After the configured command, split as a shell does with single quotes (`'a b'`, `--name='a b'`; a lone `'` is an error); `""` drops earlier arguments; also `in a 100x30 terminal with …` |
 | `Given the environment variable "HOME" is "%workspace%/home"` | Before the start; see [Workspace](#workspace-arguments-and-environment) |
 | `Given the terminal supports the kitty keyboard protocol`     | Before the start                                                |
 | `Given a file "src/a.php" containing:` + doc string           | In the workspace; also `containing "text"`, `an empty file "…"`, `a directory "…"` |

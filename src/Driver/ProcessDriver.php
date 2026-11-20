@@ -76,7 +76,7 @@ final class ProcessDriver implements DriverInterface, WidgetTreeProviderInterfac
         $launch = new Launch([...$this->command, ...$launch->arguments], [...$this->env, ...$launch->env], $launch->workspace, $launch->kitty)->resolved();
         $cwd = $this->cwd;
         if (null !== $cwd && \str_contains($cwd, '%workspace%')) {
-            $cwd = \str_replace('%workspace%', replace: $launch->workspace ?? throw new DriverException('The working directory names the workspace, but the scenario has none.'), subject: $cwd);
+            $cwd = \str_replace('%workspace%', replace: $launch->workspace ?? throw new \LogicException(\sprintf('"%s" names the workspace, but the scenario has none.', $cwd)), subject: $cwd);
         }
         $this->kitty = $launch->kitty;
         $this->kittyAnswers = 0;

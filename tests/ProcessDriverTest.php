@@ -211,6 +211,9 @@ final class ProcessDriverTest extends TestCase
 
     public function testTheApplicationEndsWhenPhpDiesWithoutStoppingIt(): void
     {
+        if (!\function_exists('posix_kill')) {
+            $this->markTestSkipped('This test needs the posix extension.');
+        }
         // The application ignores SIGTERM, so it takes the watchdog's SIGKILL; PHP's output goes nowhere, so an
         // application that outlives it cannot hold the test on a pipe
         $pidFile = (string) \tempnam(\sys_get_temp_dir(), prefix: 'tuink-pid-');
@@ -240,6 +243,32 @@ final class ProcessDriverTest extends TestCase
         }
         // The application did not outlive PHP
         $this->assertFalse($outlived);
+    }
+
+    public function testTheWatchdogIsNotAChildOfTheApplication(): void
+    {
+        if (!\function_exists('pcntl_wait')) {
+            $this->markTestSkipped('This test needs the pcntl extension.');
+        }
+        // -1 is no child at all; an inherited watchdog would be one, and would block a blocking wait for good
+        $this->session = new Session(new ProcessDriver([\PHP_BINARY, '-r', 'echo -1 === pcntl_wait($status, \WNOHANG) ? "no child" : "a child", "\n"; sleep(5);']), 20, 3, 5.0);
+        $this->session->start();
+
+        $this->session->assertSee('no child');
+        $this->addToAssertionCount(1);
+    }
+
+    public function testWithoutPsTheWatchdogStandsDown(): void
+    {
+        // Nothing on the PATH: the watchdog cannot tell who the parent is, and must not take that for PHP being gone
+        $this->session = new Session(new ProcessDriver(['/bin/sh', '-c', 'echo up; while :; do /bin/sleep 1; done'], env: ['PATH' => '/nonexistent']), 20, 3, 5.0);
+        $this->session->start();
+        $this->session->assertSee('up');
+
+        // Past the watchdog's first look and the two seconds before a SIGKILL
+        $this->session->getDriver()->pump(3.5);
+
+        $this->assertTrue($this->session->getDriver()->isRunning());
     }
 
     public function testBeforeStart(): void
@@ -375,8 +404,8 @@ final class ProcessDriverTest extends TestCase
     {
         $driver = new ProcessDriver(['true'], '%workspace%/sub');
 
-        $this->expectException(DriverException::class);
-        $this->expectExceptionMessageIsOrContains('The working directory names the workspace, but the scenario has none.');
+        $this->expectException(\LogicException::class);
+        $this->expectExceptionMessageIsOrContains('"%workspace%/sub" names the workspace, but the scenario has none.');
         $driver->start(20, rows: 5);
     }
 
