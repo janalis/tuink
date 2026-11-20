@@ -41,6 +41,9 @@ final class Keys
         'f10' => "\x1b[21~",
         'f11' => "\x1b[23~",
         'f12' => "\x1b[24~",
+        // What a terminal sends once focus events are on, when its window gains or loses the focus
+        'focusin' => "\x1b[I",
+        'focusout' => "\x1b[O",
     ];
 
     /** Keys sent as CSI 1;<modifier><final> when modified, and as CSI <final> or SS3 <final> bare. */

@@ -284,7 +284,7 @@ The bell counts BEL characters outside escape sequences; the title is the last o
 
 ### Keys
 
-Names are case-insensitive, with optional angle brackets: `Enter`, `Escape`, `Tab`, `Space`, `Backspace`, `Delete`, `Insert`, `Up`, `Down`, `Left`, `Right`, `Home`, `End`, `PageUp`, `PageDown`, `F1`–`F12`, or any single character. Modifiers join with `+`: `Ctrl+S`, `Shift+Tab`, `Alt+Left`, `Ctrl+Shift+Up`. Combinations without a legacy encoding, like `Ctrl+Tab`, `Shift+Backspace` or `Ctrl+Shift+A`, go in the CSI u form of the kitty keyboard protocol, which the Symfony Tui key parser reads. In `I send`, a key is a word of two letters or more (`<Enter>`, `<F5>`) or carries a modifier (`<Alt+x>`); `<b>` stays text.
+Names are case-insensitive, with optional angle brackets: `Enter`, `Escape`, `Tab`, `Space`, `Backspace`, `Delete`, `Insert`, `Up`, `Down`, `Left`, `Right`, `Home`, `End`, `PageUp`, `PageDown`, `F1`–`F12`, `FocusIn` and `FocusOut` (the reports a terminal sends when its window gains or loses the focus), or any single character. Modifiers join with `+`: `Ctrl+S`, `Shift+Tab`, `Alt+Left`, `Ctrl+Shift+Up`. Combinations without a legacy encoding, like `Ctrl+Tab`, `Shift+Backspace` or `Ctrl+Shift+A`, go in the CSI u form of the kitty keyboard protocol, which the Symfony Tui key parser reads. In `I send`, a key is a word of two letters or more (`<Enter>`, `<F5>`) or carries a modifier (`<Alt+x>`); `<b>` stays text.
 
 ### Snapshots
 

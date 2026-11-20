@@ -118,11 +118,11 @@ final class SessionActionsTest extends TestCase
     public function testFocusEventsSettle(): void
     {
         $session = $this->demo();
-        $session->focusTerminal(false);
+        $session->press('FocusOut');
 
         // Read at once: the action waited for the frame
         $this->assertStringContainsString('Window unfocused', $session->getScreenText());
-        $session->focusTerminal();
+        $session->press('FocusIn');
         $this->assertStringContainsString('Window focused', $session->getScreenText());
     }
 

@@ -73,9 +73,9 @@ final class ChecksTest extends TestCase
     public function testFocusEvents(): void
     {
         $this->session->start();
-        $this->session->focusTerminal(false);
-        $this->session->focusTerminal();
-        $this->session->focusTerminal(true);
+        $this->session->press('FocusOut');
+        $this->session->press('FocusIn');
+        $this->session->press('<focusin>');
 
         $this->assertSame("\x1b[O\x1b[I\x1b[I", $this->driver->input);
     }
@@ -85,7 +85,7 @@ final class ChecksTest extends TestCase
         $this->expectException(DriverException::class);
         $this->expectExceptionMessageIsOrContains('The application is not started.');
 
-        $this->session->focusTerminal();
+        $this->session->press('FocusIn');
     }
 
     public function testTheGrid(): void
@@ -241,8 +241,8 @@ final class ChecksTest extends TestCase
         $this->assertTrue($terminal->isModeOn('SGR mouse'));
         $this->assertTrue($terminal->isModeOn('alternate screen'));
         $this->assertFalse($terminal->isModeOn('mouse drags'));
-        $terminal->assertMode('SGR mouse');
-        $terminal->assertMode('mouse drags', on: false);
+        $terminal->assertModeOn('SGR mouse');
+        $terminal->assertModeOff('mouse drags');
 
         $this->driver->output("\x1b[?1002h\x1b[?1000l");
         $this->assertTrue($terminal->isModeOn('mouse clicks'));
@@ -261,7 +261,7 @@ final class ChecksTest extends TestCase
         $this->driver->output("\x1b[?2004h");
 
         try {
-            $this->session->terminal()->assertMode('bracketed paste', on: false);
+            $this->session->terminal()->assertModeOff('bracketed paste');
             $this->fail('The mode is on.');
         } catch (ExpectationException $e) {
             $this->assertStringStartsWith('The bracketed paste mode is on.', $e->getMessage());
@@ -269,7 +269,7 @@ final class ChecksTest extends TestCase
 
         $this->expectException(ExpectationException::class);
         $this->expectExceptionMessageIsOrContains('The focus events mode is off.');
-        $this->session->terminal()->assertMode('focus events');
+        $this->session->terminal()->assertModeOn('focus events');
     }
 
     public function testAnUnknownMode(): void
@@ -278,7 +278,7 @@ final class ChecksTest extends TestCase
 
         $this->expectException(\InvalidArgumentException::class);
         $this->expectExceptionMessageIsOrContains('Unknown terminal mode "kitty"; use alternate screen, mouse clicks, mouse drags, mouse motion, SGR mouse, bracketed paste, focus events.');
-        $this->session->terminal()->assertMode('kitty', on: false);
+        $this->session->terminal()->assertModeOff('kitty');
     }
 
     public function testTheCursor(): void
@@ -292,11 +292,10 @@ final class ChecksTest extends TestCase
         $this->driver->output("\x1b[?25l\x1b[3;5H");
         $this->assertFalse($terminal->isCursorVisible());
         $this->assertSame([3, 5], $terminal->getCursor());
-        $terminal->assertCursorVisible(false);
+        $terminal->assertCursorHidden();
 
         $this->driver->output("\x1b[?25h\x1b[4 q");
         $terminal->assertCursorVisible();
-        $terminal->assertCursorVisible(true);
         $terminal->assertCursorAt(3, column: 5);
         $terminal->assertCursorShape('underline');
         $this->addToAssertionCount(4);
@@ -308,7 +307,7 @@ final class ChecksTest extends TestCase
     public static function cursorFailures(): iterable
     {
         yield 'visible' => ["\x1b[?25l", static fn (Session $s) => $s->terminal()->assertCursorVisible(), 'The cursor is hidden.'];
-        yield 'hidden' => ['', static fn (Session $s) => $s->terminal()->assertCursorVisible(false), 'The cursor is visible.'];
+        yield 'hidden' => ['', static fn (Session $s) => $s->terminal()->assertCursorHidden(), 'The cursor is visible.'];
         yield 'elsewhere' => ["\x1b[2;3H", static fn (Session $s) => $s->terminal()->assertCursorAt(2, column: 4), 'The cursor is at line 2, column 3, not line 2, column 4.'];
         yield 'on another line' => ["\x1b[2;3H", static fn (Session $s) => $s->terminal()->assertCursorAt(1, column: 3), 'The cursor is at line 2, column 3, not line 1, column 3.'];
         yield 'hidden where expected' => ["\x1b[2;3H\x1b[?25l", static fn (Session $s) => $s->terminal()->assertCursorAt(2, column: 3), 'The cursor is hidden; it was expected at line 2, column 3.'];

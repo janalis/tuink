@@ -25,6 +25,8 @@ final class KeysTest extends TestCase
     public static function keys(): iterable
     {
         yield 'enter' => ['Enter', "\r"];
+        yield 'focus in' => ['FocusIn', "\x1b[I"];
+        yield 'focus out' => ['<focusout>', "\x1b[O"];
         yield 'brackets' => ['<Enter>', "\r"];
         yield 'case' => ['ESCAPE', "\x1b"];
         yield 'tab' => ['Tab', "\t"];

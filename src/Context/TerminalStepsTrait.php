@@ -72,19 +72,13 @@ trait TerminalStepsTrait
     #[Then('/^the "([^"]+)" mode should be (on|off)$/')]
     public function assertMode(string $mode, string $state): void
     {
-        $this
-            ->getSession()
-            ->terminal()
-            ->assertMode($mode, 'on' === $state);
+        'on' === $state ? $this->getSession()->terminal()->assertModeOn($mode) : $this->getSession()->terminal()->assertModeOff($mode);
     }
 
     #[Then('/^the cursor should be (visible|hidden)$/')]
     public function assertCursorVisible(string $state): void
     {
-        $this
-            ->getSession()
-            ->terminal()
-            ->assertCursorVisible('visible' === $state);
+        'visible' === $state ? $this->getSession()->terminal()->assertCursorVisible() : $this->getSession()->terminal()->assertCursorHidden();
     }
 
     #[Then('/^the cursor should be at line (\d+), column (\d+)$/')]
@@ -102,7 +96,7 @@ trait TerminalStepsTrait
     #[When('/^the terminal (gains|loses) (?:the )?focus$/')]
     public function focusTerminal(string $change): void
     {
-        $this->getSession()->focusTerminal('gains' === $change);
+        $this->getSession()->press('gains' === $change ? 'FocusIn' : 'FocusOut');
     }
 
     abstract protected function getSession(): Session;

@@ -152,16 +152,6 @@ final class Session
         return new BoxChecks($this, $title);
     }
 
-    /**
-     * Tells the application the terminal window gained or lost the focus, as a terminal does once focus events are on.
-     */
-    public function focusTerminal(bool $focused = true): void
-    {
-        $this->ensureRunning();
-        $this->driver->send($focused ? "\x1b[I" : "\x1b[O");
-        $this->settle();
-    }
-
     public function isStarted(): bool
     {
         return $this->driver->isStarted();

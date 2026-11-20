@@ -60,11 +60,19 @@ final readonly class TerminalChecks
         return [] !== \array_filter($modes, static fn (int $mode): bool => true === $observer->getMode($mode));
     }
 
-    public function assertMode(string $name, bool $on = true): void
+    public function assertModeOn(string $name): void
     {
         $this->session->waitUntil(
-            fn (): bool => $this->isModeOn($name) === $on,
-            \sprintf('The %s mode is %s.', $name, $on ? 'off' : 'on'),
+            fn (): bool => $this->isModeOn($name),
+            \sprintf('The %s mode is off.', $name),
+        );
+    }
+
+    public function assertModeOff(string $name): void
+    {
+        $this->session->waitUntil(
+            fn (): bool => !$this->isModeOn($name),
+            \sprintf('The %s mode is on.', $name),
         );
     }
 
@@ -91,11 +99,19 @@ final readonly class TerminalChecks
         return [$read('cursorRow'), $read('cursorCol')];
     }
 
-    public function assertCursorVisible(bool $visible = true): void
+    public function assertCursorVisible(): void
     {
         $this->session->waitUntil(
-            fn (): bool => $this->isCursorVisible() === $visible,
-            \sprintf('The cursor is %s.', $visible ? 'hidden' : 'visible'),
+            $this->isCursorVisible(...),
+            message: 'The cursor is hidden.',
+        );
+    }
+
+    public function assertCursorHidden(): void
+    {
+        $this->session->waitUntil(
+            fn (): bool => !$this->isCursorVisible(),
+            message: 'The cursor is visible.',
         );
     }
 

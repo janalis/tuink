@@ -50,7 +50,7 @@ final class TerminalObserver
         \preg_match_all('/\x1b\[\?([\d;]+)([hl])/', $output, $matches, \PREG_SET_ORDER);
         foreach ($matches as [, $modes, $set]) {
             foreach (\explode(';', $modes) as $mode) {
-                $this->modes[(int) $mode] = 'h' === $set;
+                $this->modes[\intval($mode)] = 'h' === $set;
             }
         }
 
