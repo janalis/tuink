@@ -18,7 +18,7 @@ use Symfony\Component\Tui\Render\WidgetRect;
 /**
  * Finds widgets in a WidgetTree with CSS selectors, through symfony/css-selector.
  *
- * Before the query, each widget without children gets as text what the screen
+ * Before the query, each drawn widget gets as text what the screen
  * shows where it was drawn, so :contains("text") works; :focus and :visible
  * match its state.
  */
@@ -87,9 +87,8 @@ final class WidgetQuery
                 (int) $node->getAttribute(WidgetTree::ROWS),
             );
             $text = ($this->textOf)($rect);
-            if ($node->hasAttribute(WidgetTree::LEAF) && '' !== $text && !$node->hasChildNodes()) {
-                $node->appendChild($node->ownerDocument?->createTextNode($text) ?? throw new \LogicException('A detached element.'));
-            }
+            // For :contains(); a container's text repeats what its children show, which does not change what matches
+            $node->appendChild($tree->document->createTextNode($text));
         }
 
         $index = (int) $node->getAttribute(WidgetTree::INDEX);
@@ -97,7 +96,7 @@ final class WidgetQuery
 
         return new Element(
             index: $index,
-            name: $node->localName ?? $node->nodeName,
+            name: $node->nodeName,
             widgetClass: $node->getAttribute('widget'),
             id: $node->hasAttribute('id') ? $node->getAttribute('id') : null,
             classes: '' === $class ? [] : \explode(' ', $class),

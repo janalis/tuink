@@ -51,6 +51,20 @@ final class KeysTest extends TestCase
         yield 'plus' => ['+', '+'];
         yield 'alt plus' => ['Alt++', "\x1b+"];
         yield 'unicode' => ['é', 'é'];
+        yield 'blanks around' => [' Enter ', "\r"];
+        yield 'blanks around brackets' => [' <Enter> ', "\r"];
+        yield 'ctrl two' => ['Ctrl+2', "\x00"];
+        yield 'blanks around a modifier' => ['Ctrl + S', "\x13"];
+        yield 'meta' => ['Meta+x', "\x1bx"];
+        yield 'option' => ['Option+x', "\x1bx"];
+        yield 'control' => ['Control+s', "\x13"];
+        yield 'alt tab' => ['Alt+Tab', "\x1b\t"];
+        yield 'shift accented' => ['Shift+é', 'É'];
+        yield 'ctrl at' => ['Ctrl+@', "\x00"];
+        yield 'ctrl underscore' => ['Ctrl+_', "\x1f"];
+        yield 'ctrl bracket' => ['Ctrl+[', "\x1b"];
+        yield 'ctrl dash' => ['Ctrl+-', "\x1f"];
+        yield 'ctrl question mark' => ['Ctrl+?', "\x7f"];
     }
 
     #[DataProvider('keys')]
@@ -132,5 +146,24 @@ final class KeysTest extends TestCase
     {
         $this->assertSame($bytes, Keys::key($name));
         $this->assertTrue(new KeyParser()->matches($bytes, $key), \sprintf('"%s" is not read as "%s".', $name, $key));
+    }
+
+    /**
+     * @return iterable<string, array{string, string}>
+     */
+    public static function unknownKeys(): iterable
+    {
+        yield 'an unclosed bracket' => ['<ab', 'Unknown key "<ab"'];
+        yield 'empty brackets' => ['<>', 'Unknown key "<>"'];
+        yield 'a control code no key has' => ['Ctrl+1', 'Key "Ctrl+1" has no control code.'];
+    }
+
+    #[DataProvider('unknownKeys')]
+    public function testUnknownKeys(string $name, string $message): void
+    {
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessageIsOrContains($message);
+
+        Keys::key($name);
     }
 }

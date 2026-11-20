@@ -94,10 +94,10 @@ final class Keys
     public static function sequence(string $text): string
     {
         return (string) \preg_replace_callback(
-            '/<((?:[A-Za-z]+\+)+[^\s<>]+|[A-Za-z][A-Za-z0-9]+)>/',
+            '/<(?:[A-Za-z]+\+)+[^\s<>]+>|<[A-Za-z][A-Za-z0-9]+>/',
             static function (array $match): string {
                 try {
-                    return self::key($match[1]);
+                    return self::key($match[0]);
                 } catch (\InvalidArgumentException) {
                     return $match[0];
                 }
@@ -127,7 +127,7 @@ final class Keys
             \array_pop($parts);
             $parts[\count($parts) - 1] = '+';
         }
-        $base = (string) \array_pop($parts);
+        $base = \trim(\array_pop($parts) ?? '');
 
         $bits = 0;
         foreach ($parts as $part) {
@@ -209,14 +209,14 @@ final class Keys
 
     private static function control(string $char, string $name): string
     {
-        $code = 1 === \strlen($char) ? \ord(\strtoupper($char)) : 0;
-        if ($code >= 64 && $code <= 95) {
-            // Ctrl clears the two high bits: Ctrl+@ is NUL, Ctrl+A is 1, Ctrl+_ is 31
-            return \chr($code - 64);
+        // Ctrl clears the two high bits of @, A to Z and [ \ ] ^ _: Ctrl+@ is NUL, Ctrl+A is 1, Ctrl+_ is 31
+        $upper = \strtoupper($char);
+        if ('@' <= $upper && $upper <= '_') {
+            return \chr(\ord($upper) - 64);
         }
 
         return match ($char) {
-            ' ', '2' => "\x00",
+            '2' => "\x00",
             '-' => "\x1f",
             '?' => "\x7f",
             default => throw new \InvalidArgumentException(\sprintf('Key "%s" has no control code.', $name)),

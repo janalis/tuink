@@ -20,6 +20,16 @@ namespace Janalis\Tuink\Driver;
  */
 final class OutputBuffer
 {
+    /** What output can end with that the next chunk completes */
+    private const UNFINISHED = [
+        // A string sequence (OSC, DCS, APC, PM, SOS) not yet terminated by BEL or ST; ST may itself be split, as ESC then \
+        '/\x1b[\]P_^X](?:(?!\x07|\x1b\\\\).)*$/s',
+        // ESC alone, a CSI without its final byte (@ to ~), or SS3 and charset designations without their byte
+        '/\x1b(?:\[[\x20-\x3F]*|[O()*+# ])?$/',
+        // A UTF-8 lead byte missing continuation bytes
+        '/(?:[\xC0-\xDF]|[\xE0-\xEF][\x80-\xBF]?|[\xF0-\xF7][\x80-\xBF]{0,2})$/',
+    ];
+
     private string $pending = '';
 
     /**
@@ -47,67 +57,13 @@ final class OutputBuffer
 
     private static function completeLength(string $data): int
     {
-        $length = \strlen($data);
-
-        // A string sequence (OSC, DCS…) still open: its terminator may itself be split, as ESC then \
-        $match = [];
-        if (\preg_match('/\x1b[\]P_^X](?:(?!\x07|\x1b\\\\).)*$/s', $data, $match, \PREG_OFFSET_CAPTURE)) {
-            return (int) $match[0][1];
-        }
-
-        $escape = \strrpos($data, needle: "\x1b");
-        if (false !== $escape && !self::isCompleteEscape($data, $escape)) {
-            return $escape;
-        }
-
-        // A UTF-8 lead byte in the last three bytes whose character runs past the end
-        for ($i = \max(0, $length - 3); $i < $length; ++$i) {
-            $byte = \ord($data[$i]);
-            $needed = match (true) {
-                $byte >= 0xF0 && $byte <= 0xF7 => 4,
-                $byte >= 0xE0 => 3,
-                $byte >= 0xC0 => 2,
-                default => 0,
-            };
-            if (($i + $needed) > $length && $byte <= 0xF7) {
-                return $i;
+        foreach (self::UNFINISHED as $pattern) {
+            $match = [];
+            if (\preg_match($pattern, $data, $match, \PREG_OFFSET_CAPTURE)) {
+                return (int) $match[0][1];
             }
         }
 
-        return $length;
-    }
-
-    private static function isCompleteEscape(string $data, int $start): bool
-    {
-        $length = \strlen($data);
-        if (($start + 1) >= $length) {
-            return false;
-        }
-
-        $kind = $data[$start + 1];
-
-        // CSI: parameters and intermediates, then a final byte in @..~
-        if ('[' === $kind) {
-            for ($i = $start + 2; $i < $length; ++$i) {
-                $byte = \ord($data[$i]);
-                if ($byte >= 0x40 && $byte <= 0x7E) {
-                    return true;
-                }
-            }
-
-            return false;
-        }
-
-        // OSC, DCS, APC, PM, SOS: an open one was caught above
-        if (\in_array($kind, [']', 'P', '_', '^', 'X'], strict: true)) {
-            return true;
-        }
-
-        // SS3 and charset designations take one more byte
-        if (\in_array($kind, ['O', '(', ')', '*', '+', '#', ' '], strict: true)) {
-            return ($start + 2) < $length;
-        }
-
-        return true;
+        return \strlen($data);
     }
 }

@@ -175,6 +175,7 @@ final class SessionActionsTest extends TestCase
         yield 'drag' => [static fn (Session $s) => $s->drag(fromLine: 1, fromColumn: 1, toLine: 2, toColumn: 2)];
         yield 'hover' => [static fn (Session $s) => $s->hover(line: 1, column: 1)];
         yield 'resize' => [static fn (Session $s) => $s->resize(columns: 30, rows: 10)];
+        yield 'focus' => [static fn (Session $s) => $s->focus('#name')];
     }
 
     /**

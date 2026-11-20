@@ -66,6 +66,7 @@ return (new Config())
 | `process.cwd`       | Behat base path          | Working directory                                                         |
 | `process.env`       | `{}`                     | Extra environment variables                                               |
 | `process.probe_timeout` | `2.0`                | Seconds to wait for the application's `TuiProbe`                         |
+| `process.temp_dir`  | system temp directory    | Where the probe socket and the terminal name go; keep the path short, as a Unix socket path is limited to about 100 bytes |
 
 Relative paths are resolved from the Behat base path.
 

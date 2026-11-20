@@ -17,4 +17,5 @@ Version numbers follow [Semantic Versioning 2.0.0](https://semver.org/spec/v2.0.
 - Terminal steps: text styles (bold, italic and the other attributes, foreground and background colors), the bell and the window title.
 - Key combinations without a legacy encoding, like Ctrl+Tab or Shift+Backspace, are sent in the CSI u form the Tui key parser reads.
 - `@in_process` and `@process` tags switch the driver per scenario or feature.
+- A `process.temp_dir` option for where the probe socket and the terminal name go, for systems whose temporary directory path is too long for a Unix socket.
 - The `Tuink` manager is injected into context constructors that ask for it by type, and into contexts implementing `TuinkAwareContextInterface`.

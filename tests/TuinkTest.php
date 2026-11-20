@@ -137,6 +137,15 @@ final class TuinkTest extends TestCase
         $this->tuink(factory: $factory)->getSession();
     }
 
+    public function testTheProcessTemporaryDirectoryIsResolvedFromTheBasePath(): void
+    {
+        $tuink = $this->tuink(tempDir: 'var/tmp');
+        $tuink->useDriver('process');
+        $driver = $tuink->getSession()->getDriver();
+
+        $this->assertSame(\dirname(__DIR__).'/var/tmp', new \ReflectionProperty(ProcessDriver::class, 'tempDir')->getValue($driver));
+    }
+
     public function testResetStopsTheApplication(): void
     {
         $tuink = $this->tuink();
@@ -158,7 +167,7 @@ final class TuinkTest extends TestCase
         $this->assertNotSame($session, $tuink->getSession());
     }
 
-    private function tuink(int $columns = 80, int $rows = 24, string $factory = 'example/factory.php', ?float $quietPeriod = null): Tuink
+    private function tuink(int $columns = 80, int $rows = 24, string $factory = 'example/factory.php', ?float $quietPeriod = null, ?string $tempDir = null): Tuink
     {
         return Tuink::fromConfig(
             [
@@ -169,7 +178,7 @@ final class TuinkTest extends TestCase
                 'quiet_period' => $quietPeriod,
                 'snapshots' => null,
                 'in_process' => ['factory' => $factory],
-                'process' => ['command' => ['php', 'example/bin/demo'], 'cwd' => '.', 'env' => [], 'probe_timeout' => 2.0],
+                'process' => ['command' => ['php', 'example/bin/demo'], 'cwd' => '.', 'env' => [], 'probe_timeout' => 2.0, 'temp_dir' => $tempDir],
             ],
             \dirname(__DIR__),
         );

@@ -32,6 +32,14 @@ final class OutputBufferTest extends TestCase
         yield 'lone escape' => ["ab\x1b", 'ab', "\x1b"];
         yield 'csi without final' => ["ab\x1b[38;5;23", 'ab', "\x1b[38;5;23"];
         yield 'csi complete' => ["ab\x1b[38;5;233m", "ab\x1b[38;5;233m", ''];
+        yield 'csi with no parameters' => ["a\x1b[m", "a\x1b[m", ''];
+        yield 'csi ending in @' => ["a\x1b[@", "a\x1b[@", ''];
+        yield 'csi ending in ~' => ["a\x1b[3~", "a\x1b[3~", ''];
+        yield 'csi with an intermediate byte' => ["a\x1b[1 ", 'a', "\x1b[1 "];
+        yield 'lead byte alone' => ["\xE2", '', "\xE2"];
+        yield 'two-byte lead cut' => ["a\xC3", 'a', "\xC3"];
+        yield 'two-byte complete' => ["a\xC3\xA9", "a\xC3\xA9", ''];
+        yield 'four bytes complete' => ["a\xF0\x9F\x98\x80", "a\xF0\x9F\x98\x80", ''];
         yield 'csi then text' => ["\x1b[2Jab", "\x1b[2Jab", ''];
         yield 'ss3 cut' => ["a\x1bO", 'a', "\x1bO"];
         yield 'ss3 complete' => ["a\x1bOP", "a\x1bOP", ''];

@@ -162,6 +162,18 @@ final class WidgetQueryTest extends TestCase
         $this->assertSame('elsewhere', $root?->getAttribute('id'));
     }
 
+    public function testParsingLeavesLibxmlAsItFoundIt(): void
+    {
+        $internal = \libxml_use_internal_errors(false);
+
+        try {
+            WidgetTree::fromXml('<container/>');
+            $this->assertFalse(\libxml_use_internal_errors(null));
+        } finally {
+            \libxml_use_internal_errors($internal);
+        }
+    }
+
     public function testInvalidXml(): void
     {
         $internal = \libxml_use_internal_errors(true);

@@ -38,7 +38,6 @@ final class WidgetTree
     public const INDEX = 'tuink-index';
     public const FOCUS = 'tuink-focus';
     public const VISIBLE = 'tuink-visible';
-    public const LEAF = 'tuink-leaf';
     public const ROW = 'tuink-row';
     public const COLUMN = 'tuink-col';
     public const ROWS = 'tuink-rows';
@@ -139,11 +138,7 @@ final class WidgetTree
             $node->setAttribute(self::COLUMNS, (string) $rect->columns);
         }
 
-        $children = $widget instanceof ParentInterface ? $widget->all() : [];
-        if ([] === $children) {
-            $node->setAttribute(qualifiedName: self::LEAF, value: '');
-        }
-        foreach ($children as $child) {
+        foreach ($widget instanceof ParentInterface ? $widget->all() : [] as $child) {
             $node->appendChild(self::mirror($tui, $document, $child, $widgets));
         }
 
