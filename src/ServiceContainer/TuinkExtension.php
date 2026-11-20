@@ -145,10 +145,11 @@ final class TuinkExtension implements Extension
 
     public function load(ContainerBuilder $container, array $config): void
     {
-        // The container would read "%workspace%" as one of its parameters; it is tuink's, for the scenario's workspace
+        // The container reads "%name%" as one of its parameters, so "%workspace%", "100%" or "+%Y" in a command would
+        // break it: the values are taken as they are written
         \array_walk_recursive($config, static function (mixed &$value): void {
             if (\is_string($value)) {
-                $value = \str_replace('%workspace%', replace: '%%workspace%%', subject: $value);
+                $value = \str_replace('%', replace: '%%', subject: $value);
             }
         });
         $manager = new Definition(Tuink::class, [$config, '%paths.base%']);

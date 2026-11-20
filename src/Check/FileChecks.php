@@ -54,7 +54,7 @@ final readonly class FileChecks
     {
         $workspace = $this->session->getWorkspace();
         $this->session->waitUntil(
-            static fn (): bool => !\str_contains($workspace->read($path) ?? '', $text),
+            static fn (): bool => null !== ($content = $workspace->read($path)) && !\str_contains($content, $text),
             fn (): string => $this->describe($path, \sprintf('contains "%s"', $text)),
         );
     }

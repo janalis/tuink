@@ -23,8 +23,9 @@ use Symfony\Component\Tui\Tui;
  * Runs the application in the test process, on a VirtualTerminal.
  *
  * The factory receives the terminal and the scenario's Launch, and returns the
- * application's Tui without starting it. The Launch's variables are set with
- * putenv() for the run and restored after it. The driver starts it and turns the Revolt event loop in short
+ * application's Tui without starting it. The Launch's variables are set for the
+ * run in putenv(), $_SERVER and $_ENV (Symfony Process gives its children the
+ * variables of the last two), and restored after it. The driver starts it and turns the Revolt event loop in short
  * slices, so timers, intervals and async work progress as they would under
  * Tui::run(), and the Tui itself stays reachable for focus and widget checks.
  */
@@ -38,7 +39,7 @@ final class InProcessDriver implements DriverInterface, WidgetTreeProviderInterf
     private TerminalObserver $observer;
     /** @var array<string, true> Event loop callbacks that existed before the application */
     private array $foreignCallbacks = [];
-    /** @var array<string, string|false> The values putenv() replaced, to restore at stop */
+    /** @var array<string, array{string|false, ?array{mixed}, ?array{mixed}}> What getenv(), $_SERVER and $_ENV held, to restore at stop */
     private array $replacedEnv = [];
 
     /**
@@ -104,8 +105,10 @@ final class InProcessDriver implements DriverInterface, WidgetTreeProviderInterf
         $this->foreignCallbacks = \array_fill_keys(EventLoop::getIdentifiers(), value: true);
         $launch = $launch->resolved();
         foreach ($launch->env as $name => $value) {
-            $this->replacedEnv[$name] = \getenv($name);
+            $this->replacedEnv[$name] = [\getenv($name), self::held($_SERVER, $name), self::held($_ENV, $name)];
             \putenv($name.'='.$value);
+            $_SERVER[$name] = $value;
+            $_ENV[$name] = $value;
         }
         $terminal = new VirtualTerminal($columns, $rows);
         $terminal->setKittyProtocolActive($launch->kitty);
@@ -231,10 +234,36 @@ final class InProcessDriver implements DriverInterface, WidgetTreeProviderInterf
 
     private function restoreEnv(): void
     {
-        foreach ($this->replacedEnv as $name => $value) {
+        foreach ($this->replacedEnv as $name => [$value, $server, $env]) {
             \putenv(false === $value ? $name : $name.'='.$value);
+            self::restore($_SERVER, $name, $server);
+            self::restore($_ENV, $name, $env);
         }
         $this->replacedEnv = [];
+    }
+
+    /**
+     * @param array<mixed>  $variables
+     * @param ?array{mixed} $held      What held() returned
+     */
+    private static function restore(array &$variables, string $name, ?array $held): void
+    {
+        unset($variables[$name]);
+        if (null !== $held) {
+            $variables[$name] = $held[0];
+        }
+    }
+
+    /**
+     * The value under the name, wrapped so that null tells a missing entry from a null one.
+     *
+     * @param array<mixed> $variables
+     *
+     * @return ?array{mixed}
+     */
+    private static function held(array $variables, string $name): ?array
+    {
+        return \array_key_exists($name, $variables) ? [$variables[$name]] : null;
     }
 
     private function tui(): Tui

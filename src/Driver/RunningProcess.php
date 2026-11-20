@@ -25,6 +25,16 @@ use Symfony\Component\Process\Process;
  */
 final class RunningProcess
 {
+    private const string LAUNCHER = <<<'SH'
+        stty cols "$TUINK_COLUMNS" rows "$TUINK_ROWS" 2>/dev/null
+        printf %s "$(tty)" > "$TUINK_TTY_FILE"
+        (
+            while [ "$(ps -o ppid= -p $$ | tr -d ' ')" = "$PPID" ]; do sleep 1; done
+            kill -0 $$ && kill -TERM $$ && sleep 2 && kill -KILL $$
+        ) </dev/null >/dev/null 2>&1 &
+        exec "$@" 2>&1
+        SH;
+
     private readonly OutputBuffer $output;
 
     private function __construct(
@@ -54,9 +64,12 @@ final class RunningProcess
         $probe = ProbeServer::listen($probeTimeout, $isRunning, $idle, $tempDir);
         $input = new InputStream();
         // The size is set on the pty before exec, so the application reads it from stty as in a real terminal; Symfony
-        // Process gives a pty's stderr a pipe of its own, so it is sent to the pty, where a terminal shows it
+        // Process gives a pty's stderr a pipe of its own, so it is sent to the pty, where a terminal shows it. The pty
+        // is not the application's controlling terminal, so nothing hangs it up when PHP dies without stopping it (a
+        // test runner killed on timeout): a watchdog ends it then. $$ stays the application's pid across exec, and the
+        // watchdog looks for its new parent rather than for PHP, which stays a zombie until its own parent reaps it.
         $process = new Process(
-            ['/bin/sh', '-c', 'stty cols "$TUINK_COLUMNS" rows "$TUINK_ROWS" 2>/dev/null; printf %s "$(tty)" > "$TUINK_TTY_FILE"; exec "$@" 2>&1', 'tuink', ...$command],
+            ['/bin/sh', '-c', self::LAUNCHER, 'tuink', ...$command],
             $cwd,
             [
                 'TERM' => 'xterm-256color',

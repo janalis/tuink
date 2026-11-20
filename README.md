@@ -68,7 +68,7 @@ return (new Config())
 | `process.probe_timeout` | `2.0`                | Seconds to wait for the application's `TuiProbe`                         |
 | `process.temp_dir`  | system temp directory    | Where the probe socket and the terminal name go; keep the path short, as a Unix socket path is limited to about 100 bytes |
 
-Relative paths are resolved from the Behat base path.
+Relative paths are resolved from the Behat base path. Values are taken as written: a `%` is not a Behat parameter, so `+%Y` or `100%` reach the command unchanged.
 
 ### The in-process factory
 
@@ -100,7 +100,7 @@ Your entry point does the same with the real terminal and calls `run()`. The dri
 | `Given a file "src/a.php" containing:` + doc string           | In the workspace; also `containing "text"`, `an empty file "…"`, `a directory "…"` |
 | `When I delete "src/a.php"`                                   | Or `remove`; a file or a directory                              |
 | `Then the file "out.txt" should [not] exist`                  | Waits for the app to write it                                   |
-| `Then the file "out.txt" should [not] contain "text"`         |                                                                 |
+| `Then the file "out.txt" should [not] contain "text"`         | Both fail when the file does not exist                          |
 | `Then the file "out.txt" should contain exactly:` + doc string | Trailing line breaks ignored                                   |
 | `When I type "text"`                                          | Characters, literally                                           |
 | `When I press "Enter"` / `When I press "Down" 3 times`        | See key names below                                             |

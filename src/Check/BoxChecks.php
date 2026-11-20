@@ -14,6 +14,7 @@ namespace Janalis\Tuink\Check;
 use Janalis\Tuink\Box;
 use Janalis\Tuink\Mouse;
 use Janalis\Tuink\Session;
+use Janalis\Tuink\Util\Text;
 
 /**
  * Reads, checks and clicks inside a frame found by the title on its top border, like a dialog or a panel.
@@ -61,9 +62,9 @@ final readonly class BoxChecks
      */
     public function assertShows(string $expected): void
     {
-        $expected = self::normalize($expected);
+        $expected = Text::normalize($expected);
         $this->session->waitUntil(
-            fn (): bool => null !== ($inside = $this->getText()) && self::normalize($inside) === $expected,
+            fn (): bool => null !== ($inside = $this->getText()) && Text::normalize($inside) === $expected,
             fn (): string => $this->describe("is not:\n".$expected),
         );
     }
@@ -114,11 +115,6 @@ final readonly class BoxChecks
 
         return null === $inside
             ? \sprintf('No frame titled "%s" is on the screen.', $this->title)
-            : \sprintf("The frame titled \"%s\" %s; it shows:\n%s", $this->title, $problem, self::normalize($inside));
-    }
-
-    private static function normalize(string $text): string
-    {
-        return \rtrim(\implode("\n", \array_map(rtrim(...), \explode("\n", $text))), characters: "\n");
+            : \sprintf("The frame titled \"%s\" %s; it shows:\n%s", $this->title, $problem, Text::normalize($inside));
     }
 }

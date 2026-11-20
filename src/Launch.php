@@ -69,11 +69,39 @@ final readonly class Launch
     }
 
     /**
-     * The arguments and variables with "%workspace%" replaced by the workspace's path, and the workspace in TUINK_WORKSPACE.
+     * Splits a command line as a shell would, with single quotes only: 'a b' and --name='a b' are one argument each,
+     * and '' an empty one.
+     *
+     * @return list<string>
+     */
+    public static function split(string $line): array
+    {
+        $words = [];
+        \preg_match_all("/(?:[^\\s']+|'[^']*')+|'/", $line, $words);
+        $arguments = [];
+        foreach ($words[0] as $word) {
+            if ("'" === $word) {
+                throw new \InvalidArgumentException(\sprintf('The arguments "%s" have a quote that is not closed.', $line));
+            }
+            $arguments[] = \str_replace("'", replace: '', subject: $word);
+        }
+
+        return $arguments;
+    }
+
+    /**
+     * The arguments and variables with "%workspace%" replaced by the workspace's path, and the workspace in
+     * TUINK_WORKSPACE; naming the workspace without one is an error.
      */
     public function resolved(): self
     {
         if (null === $this->workspace) {
+            foreach ([...$this->arguments, ...$this->env] as $value) {
+                if (\str_contains($value, '%workspace%')) {
+                    throw new \LogicException(\sprintf('"%s" names the workspace, but the scenario has none.', $value));
+                }
+            }
+
             return $this;
         }
         $expand = fn (string $value): string => \str_replace('%workspace%', replace: $this->workspace, subject: $value);

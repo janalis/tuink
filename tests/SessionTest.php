@@ -56,6 +56,20 @@ final class SessionTest extends TestCase
         }
     }
 
+    public function testADroppedSessionRemovesItsWorkspace(): void
+    {
+        $session = new Session(new InProcessDriver(static fn (VirtualTerminal $terminal): Tui => new Tui(terminal: $terminal)), 20, 5, 1.0);
+        $session->start();
+        $session->stop();
+        $path = $session->getWorkspace()->path;
+        // The workspace outlives stop()
+        $this->assertDirectoryExists($path);
+
+        unset($session);
+
+        $this->assertDirectoryDoesNotExist($path);
+    }
+
     public function testStartSettlesOnTheFirstFrame(): void
     {
         $session = $this->demo();

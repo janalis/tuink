@@ -148,12 +148,14 @@ final class TuinkExtensionTest extends TestCase
         $this->assertSame(['A' => '1', 'B' => '2'], $process['env']);
     }
 
-    public function testTheWorkspaceIsNotAContainerParameter(): void
+    public function testValuesAreNotContainerParameters(): void
     {
         $container = new ContainerBuilder();
         $container->setParameter('paths.base', value: '/base');
         /** @var array<string, mixed> $config */
-        $config = $this->process(['process' => ['command' => ['app', '%workspace%/a'], 'cwd' => '%workspace%', 'env' => ['HOME' => '%workspace%/home', 'N' => 1]]]);
+        $config = $this->process([
+            'process' => ['command' => ['app', '%workspace%/a', '%paths.base%', 'date', '+%Y-%m', '100%'], 'cwd' => '%workspace%', 'env' => ['HOME' => '%workspace%/home', 'N' => 1]],
+        ]);
         new TuinkExtension()->load($container, $config);
 
         // What the compiled container hands the factory: parameters resolved, then "%%" unescaped
@@ -161,7 +163,7 @@ final class TuinkExtensionTest extends TestCase
         $resolved = \array_map(static fn (mixed $argument): mixed => $bag->unescapeValue($bag->resolveValue($argument)), $container->getDefinition(TuinkExtension::MANAGER_ID)->getArguments());
         $this->assertSame('/base', $resolved[1]);
         $process = self::section(self::section($resolved, name: '0'), name: 'process');
-        $this->assertSame(['app', '%workspace%/a'], $process['command']);
+        $this->assertSame(['app', '%workspace%/a', '%paths.base%', 'date', '+%Y-%m', '100%'], $process['command']);
         $this->assertSame('%workspace%', $process['cwd']);
         $this->assertSame(['HOME' => '%workspace%/home', 'N' => 1], $process['env']);
     }

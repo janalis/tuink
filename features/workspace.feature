@@ -40,6 +40,14 @@ Feature: What the application starts with, and the files it works on
     When I restart the app
     Then the "#name" field should contain "Linus T"
 
+  Scenario: Empty arguments remove those of an earlier start
+    Given a file "name.txt" containing "Ada"
+    And I start the app with the arguments "%workspace%/name.txt"
+    And the "#name" field should contain "Ada"
+    When I stop the app
+    And I start the app with the arguments ""
+    Then the "#name" field should not contain "Ada"
+
   Scenario: Removing a file while the application runs
     Given a file "name.txt" containing "Ada"
     And a directory "cache-dir/nested"

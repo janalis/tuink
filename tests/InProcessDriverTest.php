@@ -18,6 +18,7 @@ use Janalis\Tuink\Launch;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use Revolt\EventLoop;
+use Symfony\Component\Process\Process;
 use Symfony\Component\Tui\Terminal\VirtualTerminal;
 use Symfony\Component\Tui\Tui;
 use Symfony\Component\Tui\Widget\TextWidget;
@@ -74,6 +75,40 @@ final class InProcessDriverTest extends TestCase
             );
         } finally {
             \putenv('TUINK_TEST_SET');
+        }
+    }
+
+    public function testTheApplicationsSubprocessesGetTheEnvironment(): void
+    {
+        $_SERVER['TUINK_TEST_SERVER'] = ['not', 'a string'];
+        $_ENV['TUINK_TEST_ENV'] = 'env before';
+        unset($_SERVER['TUINK_TEST_NEW'], $_ENV['TUINK_TEST_NEW'], $_SERVER['TUINK_TEST_ENV'], $_ENV['TUINK_TEST_SERVER']);
+        $seen = null;
+        $driver = new InProcessDriver(static function (VirtualTerminal $terminal) use (&$seen): Tui {
+            // Symfony Process builds a child's environment from $_SERVER and $_ENV, not from putenv() alone
+            $process = new Process(['/bin/sh', '-c', 'printf %s "$TUINK_TEST_NEW,$TUINK_TEST_SERVER,$TUINK_TEST_ENV"']);
+            $process->mustRun();
+            $seen = $process->getOutput();
+
+            return new Tui(terminal: $terminal);
+        });
+        $this->driver = $driver;
+
+        try {
+            $driver->start(20, rows: 5, launch: new Launch(env: ['TUINK_TEST_NEW' => 'new', 'TUINK_TEST_SERVER' => 'server', 'TUINK_TEST_ENV' => 'env']));
+            $this->assertSame('new,server,env', $seen);
+            $this->assertSame(['new', 'new'], [$_SERVER['TUINK_TEST_NEW'], $_ENV['TUINK_TEST_NEW']]);
+            $driver->stop();
+
+            $this->assertArrayNotHasKey('TUINK_TEST_NEW', $_SERVER);
+            $this->assertArrayNotHasKey('TUINK_TEST_NEW', $_ENV);
+            $this->assertSame(['not', 'a string'], $_SERVER['TUINK_TEST_SERVER']);
+            $this->assertArrayNotHasKey('TUINK_TEST_SERVER', $_ENV);
+            $this->assertSame('env before', $_ENV['TUINK_TEST_ENV']);
+            $this->assertArrayNotHasKey('TUINK_TEST_ENV', $_SERVER);
+            $this->assertFalse(\getenv('TUINK_TEST_NEW'));
+        } finally {
+            unset($_SERVER['TUINK_TEST_SERVER'], $_ENV['TUINK_TEST_ENV']);
         }
     }
 

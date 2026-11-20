@@ -19,6 +19,7 @@ use Behat\Step\When;
 use Janalis\Tuink\Driver\InProcessDriver;
 use Janalis\Tuink\Exception\ExpectationException;
 use Janalis\Tuink\Exception\UnsupportedDriverException;
+use Janalis\Tuink\Launch;
 use Janalis\Tuink\Mouse;
 use Janalis\Tuink\Selector\Element;
 use Janalis\Tuink\Session;
@@ -37,16 +38,15 @@ class TuiContext implements TuinkAwareContextInterface
     use TerminalStepsTrait;
 
     /**
-     * The arguments follow the configured command; quote one with spaces in single quotes.
+     * The arguments follow the configured command, split as a shell would with single quotes; "" removes those of an
+     * earlier start, and a start without arguments keeps them.
      */
-    #[Given('/^I start the app(?: in an? (\d+)x(\d+) terminal)?(?: with the arguments? "([^"]*)")?$/')]
-    public function startApp(string $columns = '', string $rows = '', string $arguments = ''): void
+    #[Given('/^I start the app(?: in an? (\d+)x(\d+) terminal)?( with the arguments? "([^"]*)")?$/')]
+    public function startApp(string $columns = '', string $rows = '', string $withArguments = '', string $arguments = ''): void
     {
         $session = $this->getSession();
-        if ('' !== $arguments) {
-            $words = [];
-            \preg_match_all("/'([^']*)'|(\\S+)/", $arguments, $words, \PREG_SET_ORDER);
-            $session->setLaunch($session->getLaunch()->withArguments(\array_map(static fn (array $w): string => $w[2] ?? $w[1], $words)));
+        if ('' !== $withArguments) {
+            $session->setLaunch($session->getLaunch()->withArguments(Launch::split($arguments)));
         }
         '' === $columns ? $session->start() : $session->start((int) $columns, (int) $rows);
     }

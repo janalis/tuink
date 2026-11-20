@@ -161,10 +161,9 @@ final class ChecksTest extends TestCase
         $files->assertNotExists('b.txt');
         $files->assertContains('a.txt', text: 'two');
         $files->assertNotContains('a.txt', text: 'three');
-        $files->assertNotContains('b.txt', text: 'three');
         $files->assertEquals('a.txt', expected: "one\ntwo");
         $files->assertEquals('a.txt', expected: "one\ntwo\n");
-        $this->addToAssertionCount(7);
+        $this->addToAssertionCount(6);
     }
 
     /**
@@ -177,6 +176,7 @@ final class ChecksTest extends TestCase
         yield 'contains' => [static fn (Session $s) => $s->files()->assertContains('a.txt', text: 'three'), "The file \"a.txt\" does not contain \"three\"; it contains:\none\ntwo\n"];
         yield 'contains in a missing file' => [static fn (Session $s) => $s->files()->assertContains('b.txt', text: ''), 'The file "b.txt" does not exist.'];
         yield 'does not contain' => [static fn (Session $s) => $s->files()->assertNotContains('a.txt', text: 'two'), 'The file "a.txt" contains "two"; it contains:'];
+        yield 'does not contain in a missing file' => [static fn (Session $s) => $s->files()->assertNotContains('b.txt', text: 'three'), 'The file "b.txt" does not exist.'];
         yield 'equals' => [static fn (Session $s) => $s->files()->assertEquals('a.txt', expected: 'one'), 'The file "a.txt" is not as expected; it contains:'];
         yield 'equals a missing file' => [static fn (Session $s) => $s->files()->assertEquals('b.txt', expected: ''), 'The file "b.txt" does not exist.'];
         yield 'equals an empty file' => [static fn (Session $s) => $s->files()->assertEquals('empty.txt', expected: 'x'), "The file \"empty.txt\" is not as expected; it contains:\n    (nothing)"];

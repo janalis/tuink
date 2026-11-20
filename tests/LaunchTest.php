@@ -12,6 +12,7 @@ declare(strict_types=1);
 namespace Janalis\Tuink\Tests;
 
 use Janalis\Tuink\Launch;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
 final class LaunchTest extends TestCase
@@ -54,9 +55,27 @@ final class LaunchTest extends TestCase
 
     public function testResolvedWithoutAWorkspaceChangesNothing(): void
     {
-        $launch = new Launch(['%workspace%/a'], ['A' => '%workspace%'], kitty: true);
+        $launch = new Launch(['a'], ['A' => 'workspace%'], kitty: true);
 
         $this->assertSame($launch, $launch->resolved());
+    }
+
+    /**
+     * @return iterable<string, array{Launch, string}>
+     */
+    public static function namingAMissingWorkspace(): iterable
+    {
+        yield 'an argument' => [new Launch(['a', '%workspace%/b']), '%workspace%/b'];
+        yield 'a variable' => [new Launch(['a'], ['A' => 'x', 'B' => 'in %workspace%']), 'in %workspace%'];
+    }
+
+    #[DataProvider('namingAMissingWorkspace')]
+    public function testResolvedFailsWhenTheWorkspaceIsNamedButMissing(Launch $launch, string $value): void
+    {
+        $this->expectException(\LogicException::class);
+        $this->expectExceptionMessageIsOrContains(\sprintf('"%s" names the workspace, but the scenario has none.', $value));
+
+        $launch->resolved();
     }
 
     public function testResolvedNamesTheWorkspace(): void
@@ -74,5 +93,48 @@ final class LaunchTest extends TestCase
         $launch = new Launch(env: ['TUINK_WORKSPACE' => 'mine'], workspace: '/w')->resolved();
 
         $this->assertSame(['TUINK_WORKSPACE' => 'mine'], $launch->env);
+    }
+
+    /**
+     * @return iterable<string, array{string, list<string>}>
+     */
+    public static function commandLines(): iterable
+    {
+        yield 'nothing' => ['', []];
+        yield 'spaces' => ['  a   b ', ['a', 'b']];
+        yield 'a quoted word' => ["'a b' c", ['a b', 'c']];
+        yield 'a quoted value' => ["--name='a b' c", ['--name=a b', 'c']];
+        yield 'quotes inside a word' => ["a'b c'd'e'", ['ab cde']];
+        yield 'an empty word' => ["'' a", ['', 'a']];
+        yield 'tabs' => ["a\tb", ['a', 'b']];
+    }
+
+    /**
+     * @param list<string> $expected
+     */
+    #[DataProvider('commandLines')]
+    public function testSplit(string $line, array $expected): void
+    {
+        $this->assertSame($expected, Launch::split($line));
+    }
+
+    /**
+     * @return iterable<string, array{string}>
+     */
+    public static function unclosedQuotes(): iterable
+    {
+        yield 'alone' => ["a ' b"];
+        yield 'at the start' => ["'a b"];
+        yield 'after a word' => ["a'b"];
+        yield 'after a pair' => ["'a' 'b"];
+    }
+
+    #[DataProvider('unclosedQuotes')]
+    public function testSplitFailsOnAnUnclosedQuote(string $line): void
+    {
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessageIsOrContains(\sprintf('The arguments "%s" have a quote that is not closed.', $line));
+
+        Launch::split($line);
     }
 }

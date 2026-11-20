@@ -21,6 +21,7 @@ use Janalis\Tuink\Exception\ExpectationException;
 use Janalis\Tuink\Exception\UnsupportedDriverException;
 use Janalis\Tuink\Selector\Element;
 use Janalis\Tuink\Selector\WidgetQuery;
+use Janalis\Tuink\Util\Text;
 use Janalis\Tuink\Util\Warnings;
 use Symfony\Component\String\UnicodeString;
 use Symfony\Component\Tui\Render\WidgetRect;
@@ -120,12 +121,20 @@ final class Session
 
     /**
      * Stops the application and removes the workspace, at the end of a scenario.
+     *
+     * The workspace outlives stop(), so a scenario can check what the application saved; a session dropped without
+     * close() removes it when it is destroyed.
      */
     public function close(): void
     {
         $this->stop();
         $this->workspace?->destroy();
         $this->workspace = null;
+    }
+
+    public function __destruct()
+    {
+        $this->workspace?->destroy();
     }
 
     /**
@@ -663,9 +672,9 @@ final class Session
      */
     public function assertScreenEquals(string $expected): void
     {
-        $expected = self::normalize($expected);
+        $expected = Text::normalize($expected);
         $this->waitUntil(
-            static fn (self $s): bool => self::normalize($s->getScreenText()) === $expected,
+            static fn (self $s): bool => Text::normalize($s->getScreenText()) === $expected,
             "The screen is not:\n".self::number($expected),
         );
     }
@@ -682,7 +691,7 @@ final class Session
             throw new \InvalidArgumentException(\sprintf('A region starts at line 1, column 1 or further, not at line %d, column %d.', $line, $column));
         }
 
-        $expected = self::normalize($expected);
+        $expected = Text::normalize($expected);
         $rows = \explode("\n", $expected);
         $width = \max(\array_map(static fn (string $row): int => new UnicodeString($row)->width(), $rows));
 
@@ -703,18 +712,17 @@ final class Session
      */
     public function getRegion(int $line, int $column, int $width, int $height): string
     {
-        $cells = $this->driver->getScreen()->getCells();
+        $grid = $this->getGrid();
         $rows = [];
         for ($row = $line - 1; $row < ($line - 1 + $height); ++$row) {
             $text = '';
             for ($col = $column - 1; $col < ($column - 1 + $width); ++$col) {
-                // A wide character fills its first cell and leaves the next one empty
-                $text .= $cells[$row][$col]['char'] ?? ' ';
+                $text .= $grid[$row][$col] ?? ' ';
             }
             $rows[] = $text;
         }
 
-        return self::normalize(\implode("\n", $rows));
+        return Text::normalize(\implode("\n", $rows));
     }
 
     /**
@@ -825,11 +833,11 @@ final class Session
      */
     public function assertElementShows(string $selector, string $expected): void
     {
-        $expected = self::normalize($expected);
+        $expected = Text::normalize($expected);
         $shown = function () use ($selector): ?string {
             $found = $this->find($selector);
 
-            return 1 === \count($found) ? self::normalize($found[0]->text) : null;
+            return 1 === \count($found) ? Text::normalize($found[0]->text) : null;
         };
         $this->waitUntil(
             static fn (): bool => $shown() === $expected,
@@ -844,7 +852,7 @@ final class Session
      */
     public function snapshot(): string
     {
-        return self::normalize($this->getScreenText());
+        return Text::normalize($this->getScreenText());
     }
 
     /**
@@ -935,12 +943,10 @@ final class Session
      */
     private function locate(string $text): ?array
     {
-        $row = 0;
-        foreach ($this->getLines() as $line) {
-            ++$row;
-            $offset = \mb_strpos($line, $text);
-            if (false !== $offset) {
-                return [$row, new UnicodeString(\mb_substr($line, start: 0, length: $offset))->width() + 1];
+        foreach ($this->getGrid() as $row => $cells) {
+            $found = Box::occurrences($cells, $text);
+            if ([] !== $found) {
+                return [$row + 1, $found[0][0] + 1];
             }
         }
 
@@ -1056,7 +1062,7 @@ final class Session
     private static function showAll(array $elements): string
     {
         return \implode("\n", \array_map(
-            static fn (Element $e): string => $e->describe().($e->isVisible() ? ":\n".self::number(self::normalize($e->text)) : ' (not drawn)'),
+            static fn (Element $e): string => $e->describe().($e->isVisible() ? ":\n".self::number(Text::normalize($e->text)) : ' (not drawn)'),
             $elements,
         ));
     }
@@ -1085,16 +1091,6 @@ final class Session
         if (!$this->driver->isRunning()) {
             throw new ExpectationException('The application is no longer running.', $this->dump());
         }
-    }
-
-    private static function normalize(string $text): string
-    {
-        $lines = \array_map(rtrim(...), \explode("\n", $text));
-        while ([] !== $lines && '' === \end($lines)) {
-            \array_pop($lines);
-        }
-
-        return \implode("\n", $lines);
     }
 
     private static function number(string $text): string

@@ -209,6 +209,39 @@ final class ProcessDriverTest extends TestCase
         $this->assertFalse($session->getDriver()->isStarted());
     }
 
+    public function testTheApplicationEndsWhenPhpDiesWithoutStoppingIt(): void
+    {
+        // The application ignores SIGTERM, so it takes the watchdog's SIGKILL; PHP's output goes nowhere, so an
+        // application that outlives it cannot hold the test on a pipe
+        $pidFile = (string) \tempnam(\sys_get_temp_dir(), prefix: 'tuink-pid-');
+        $php = new Process([\PHP_BINARY, __DIR__.'/Fixtures/abandon.php', $pidFile]);
+        $php->disableOutput();
+        $php->start();
+        $deadline = \microtime(true) + 10.0;
+        while (!\str_ends_with($pid = (string) \file_get_contents($pidFile), "\n") && \microtime(true) < $deadline) {
+            \usleep(50_000);
+        }
+        \unlink($pidFile);
+        $pid = (int) $pid;
+        $this->assertGreaterThan(0, $pid);
+        // The application runs
+        $this->assertTrue(\posix_kill($pid, signal: 0));
+
+        \posix_kill((int) $php->getPid(), signal: \SIGKILL);
+        // About three seconds: a one-second poll, then two before the SIGKILL; a loaded machine takes longer
+        $deadline = \microtime(true) + 30.0;
+        while (\posix_kill($pid, signal: 0) && \microtime(true) < $deadline) {
+            \usleep(100_000);
+        }
+
+        $outlived = \posix_kill($pid, signal: 0);
+        if ($outlived) {
+            \posix_kill($pid, signal: \SIGKILL);
+        }
+        // The application did not outlive PHP
+        $this->assertFalse($outlived);
+    }
+
     public function testBeforeStart(): void
     {
         $driver = new ProcessDriver(['true']);
@@ -344,6 +377,15 @@ final class ProcessDriverTest extends TestCase
 
         $this->expectException(DriverException::class);
         $this->expectExceptionMessageIsOrContains('The working directory names the workspace, but the scenario has none.');
+        $driver->start(20, rows: 5);
+    }
+
+    public function testAConfiguredCommandNamingTheWorkspaceNeedsOne(): void
+    {
+        $driver = new ProcessDriver(['cat', '%workspace%/a']);
+
+        $this->expectException(\LogicException::class);
+        $this->expectExceptionMessageIsOrContains('"%workspace%/a" names the workspace, but the scenario has none.');
         $driver->start(20, rows: 5);
     }
 
