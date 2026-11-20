@@ -55,7 +55,7 @@ final class RunningProcess
         $input = new InputStream();
         // The size is set on the pty before exec, so the application reads it from stty as in a real terminal
         $process = new Process(
-            ['/bin/sh', '-c', 'stty cols "$TUINK_COLUMNS" rows "$TUINK_ROWS" 2>/dev/null; tty > "$TUINK_TTY_FILE"; exec "$@"', 'tuink', ...$command],
+            ['/bin/sh', '-c', 'stty cols "$TUINK_COLUMNS" rows "$TUINK_ROWS" 2>/dev/null; printf %s "$(tty)" > "$TUINK_TTY_FILE"; exec "$@"', 'tuink', ...$command],
             $cwd,
             [
                 'TERM' => 'xterm-256color',
@@ -103,7 +103,7 @@ final class RunningProcess
     {
         $pid = $this->process->getPid() ?? throw new DriverException('Cannot resize: the application is not running.');
 
-        $tty = \trim((string) \file_get_contents($this->ttyFile));
+        $tty = (string) \file_get_contents($this->ttyFile);
         $out = [];
         $code = null;
         $flag = 'Darwin' === \PHP_OS_FAMILY ? '-f' : '-F';
