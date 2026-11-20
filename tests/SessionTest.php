@@ -28,8 +28,23 @@ final class SessionTest extends TestCase
     private ?Session $session = null;
     private ?string $snapshotDir = null;
 
+    /** The CI and TUINK_UPDATE_SNAPSHOTS values the tests found, restored after each */
+    private string|false $ci = false;
+    private string|false $update = false;
+
+    protected function setUp(): void
+    {
+        // Snapshot behavior depends on them, and CI sets CI=true
+        $this->ci = \getenv('CI');
+        $this->update = \getenv('TUINK_UPDATE_SNAPSHOTS');
+        \putenv('CI');
+        \putenv('TUINK_UPDATE_SNAPSHOTS');
+    }
+
     protected function tearDown(): void
     {
+        \putenv(false === $this->ci ? 'CI' : 'CI='.$this->ci);
+        \putenv(false === $this->update ? 'TUINK_UPDATE_SNAPSHOTS' : 'TUINK_UPDATE_SNAPSHOTS='.$this->update);
         $this->session?->stop();
         if (null !== $this->snapshotDir && \is_dir($this->snapshotDir)) {
             $files = new \RecursiveIteratorIterator(new \RecursiveDirectoryIterator($this->snapshotDir, \FilesystemIterator::SKIP_DOTS), \RecursiveIteratorIterator::CHILD_FIRST);
@@ -39,8 +54,6 @@ final class SessionTest extends TestCase
             }
             \rmdir($this->snapshotDir);
         }
-        \putenv('CI');
-        \putenv('TUINK_UPDATE_SNAPSHOTS');
     }
 
     public function testStartSettlesOnTheFirstFrame(): void
