@@ -45,4 +45,13 @@ final class TerminalObserverTest extends TestCase
         // OSC 1 names the icon, not the window.
         $this->assertSame('second', $observer->getTitle());
     }
+
+    public function testNothingToObserve(): void
+    {
+        $observer = new TerminalObserver();
+        $observer->observe('');
+
+        $this->assertSame(0, $observer->getBellCount());
+        $this->assertNull($observer->getTitle());
+    }
 }

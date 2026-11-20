@@ -24,8 +24,6 @@ use Symfony\Component\Tui\Render\WidgetRect;
  */
 final class WidgetQuery
 {
-    private static ?Translator $translator = null;
-
     /**
      * @param \Closure(WidgetRect): string $textOf The screen text inside a rectangle
      */
@@ -42,7 +40,7 @@ final class WidgetQuery
         try {
             $xpath = self::translator()->cssToXPath($selector);
         } catch (ParseException $e) {
-            throw new \InvalidArgumentException(\sprintf('Invalid CSS selector "%s": %s', $selector, $e->getMessage()), 0, $e);
+            throw new \InvalidArgumentException(\sprintf('Invalid CSS selector "%s": %s', $selector, $e->getMessage()), previous: $e);
         }
 
         $document = $tree->document;
@@ -57,7 +55,7 @@ final class WidgetQuery
                 continue;
             }
 
-            $elements[(int) $node->getAttribute(WidgetTree::INDEX)] = $this->element($tree, $node);
+            $elements[$node->getAttribute(WidgetTree::INDEX)] = $this->element($tree, $node);
         }
 
         $matches = $finder->query($xpath);
@@ -71,7 +69,7 @@ final class WidgetQuery
                 continue;
             }
 
-            $found[] = $elements[(int) $node->getAttribute(WidgetTree::INDEX)];
+            $found[] = $elements[$node->getAttribute(WidgetTree::INDEX)];
         }
 
         return $found;
@@ -115,11 +113,9 @@ final class WidgetQuery
 
     private static function translator(): Translator
     {
-        if (null === self::$translator) {
-            self::$translator = new Translator();
-            self::$translator->registerExtension(new TuiPseudoClassExtension());
-        }
+        $translator = new Translator();
+        $translator->registerExtension(new TuiPseudoClassExtension());
 
-        return self::$translator;
+        return $translator;
     }
 }

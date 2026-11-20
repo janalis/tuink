@@ -34,7 +34,10 @@ final class OutputBufferTest extends TestCase
         yield 'csi complete' => ["ab\x1b[38;5;233m", "ab\x1b[38;5;233m", ''];
         yield 'csi then text' => ["\x1b[2Jab", "\x1b[2Jab", ''];
         yield 'ss3 cut' => ["a\x1bO", 'a', "\x1bO"];
+        yield 'ss3 complete' => ["a\x1bOP", "a\x1bOP", ''];
+        yield 'utf-8 lead byte f7 cut' => ["a\xF7\x80", 'a', "\xF7\x80"];
         yield 'osc open' => ["a\x1b]0;title", 'a', "\x1b]0;title"];
+        yield 'osc open across a line' => ["a\x1b]0;ti\ntle", 'a', "\x1b]0;ti\ntle"];
         yield 'osc bel' => ["a\x1b]0;title\x07b", "a\x1b]0;title\x07b", ''];
         yield 'osc st' => ["a\x1b]0;title\x1b\\b", "a\x1b]0;title\x1b\\b", ''];
         yield 'osc with split st' => ["a\x1b]0;title\x1b", 'a', "\x1b]0;title\x1b"];

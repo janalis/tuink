@@ -140,7 +140,7 @@ final class DemoApp
      *
      * A click on the name field focuses it and a double click submits it; a click on a color picks it,
      * with " with Ctrl" when Ctrl is held; the wheel moves through the colors; a right click says where it landed,
-     * and so does the release that ends a drag.
+     * and so do hovering and the release that ends a drag.
      */
     private function handleMouse(): void
     {
@@ -165,6 +165,12 @@ final class DemoApp
         $button = $code & 0b1100_0011;
         if (64 === $button || 65 === $button) {
             $this->wheel(65 === $button ? 1 : -1, $row, $column);
+
+            return;
+        }
+        if (35 === $code) {
+            // Motion with no button held: the pointer hovers
+            $this->choice->setText(\sprintf('Hover at %d:%d', $row + 1, $column + 1));
 
             return;
         }

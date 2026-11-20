@@ -44,6 +44,7 @@ final class KeysTest extends TestCase
         yield 'ctrl s' => ['Ctrl+S', "\x13"];
         yield 'ctrl c lower' => ['ctrl+c', "\x03"];
         yield 'ctrl space' => ['Ctrl+Space', "\x00"];
+        yield 'ctrl alt space' => ['Ctrl+Alt+Space', "\x1b\x00"];
         yield 'alt x' => ['Alt+x', "\x1bx"];
         yield 'shift a' => ['Shift+a', 'A'];
         yield 'shift enter' => ['Shift+Enter', "\x1b[27;2;13~"];
@@ -121,6 +122,7 @@ final class KeysTest extends TestCase
         yield ['Shift+Backspace', "\x1b[127;2u", 'shift+backspace'];
         yield ['Ctrl+Escape', "\x1b[27;5u", 'ctrl+escape'];
         yield ['Shift+Space', "\x1b[32;2u", 'shift+space'];
+        yield ['Ctrl+Shift+Space', "\x1b[32;6u", 'ctrl+shift+space'];
         yield ['Ctrl+Shift+A', "\x1b[97;6u", 'ctrl+shift+a'];
         yield ['Ctrl+Alt+s', "\x1b[115;7u", 'ctrl+alt+s'];
     }

@@ -18,6 +18,7 @@ use Janalis\Tuink\Exception\ExpectationException;
 use Janalis\Tuink\Exception\UnsupportedDriverException;
 use Janalis\Tuink\Selector\Element;
 use Janalis\Tuink\Selector\WidgetQuery;
+use Janalis\Tuink\Util\Warnings;
 use Symfony\Component\String\UnicodeString;
 use Symfony\Component\Tui\Render\WidgetRect;
 
@@ -53,6 +54,22 @@ final class Session
     public function getRows(): int
     {
         return $this->rows;
+    }
+
+    /**
+     * Seconds a check waits for the screen to show what it expects.
+     */
+    public function getTimeout(): float
+    {
+        return $this->timeout;
+    }
+
+    /**
+     * Seconds without output after which the application counts as settled.
+     */
+    public function getQuietPeriod(): float
+    {
+        return $this->quietPeriod;
     }
 
     public function start(?int $columns = null, ?int $rows = null): void
@@ -94,7 +111,6 @@ final class Session
         for ($i = 0; $i < $times; ++$i) {
             $this->ensureRunning();
             $this->driver->send($bytes);
-            $this->driver->pump(0.0);
         }
         $this->settle();
     }
@@ -245,7 +261,7 @@ final class Session
         $selected = fn () => $this->findOne($selector)->selected ?? throw new \LogicException(\sprintf('The element "%s" has no selected item; it is not a list.', $selector));
 
         // Walk down, then up; a direction ends when the selection comes back to an item already seen, at the end of the list or after wrapping around
-        $seen = [$selected() => true];
+        $seen = [$selected()];
         foreach (['Down', 'Up'] as $key) {
             while (true) {
                 if ($selected() === $label) {
@@ -255,14 +271,14 @@ final class Session
                 }
                 $this->press($key);
                 $now = $selected();
-                if (\array_key_exists($now, $seen) && $now !== $label) {
+                if (\in_array($now, $seen, strict: true) && $now !== $label) {
                     break;
                 }
-                $seen[$now] = true;
+                $seen[] = $now;
             }
         }
 
-        throw new ExpectationException(\sprintf('The list "%s" has no item "%s"; its items are "%s".', $selector, $label, \implode('", "', \array_keys($seen))), $this->dump());
+        throw new ExpectationException(\sprintf('The list "%s" has no item "%s"; its items are "%s".', $selector, $label, \implode('", "', $seen)), $this->dump());
     }
 
     /**
@@ -300,11 +316,11 @@ final class Session
     }
 
     /**
-     * @return list<string> Every row of the screen, without trailing spaces
+     * @return array<string> Every row of the screen, by row from 0, without trailing spaces
      */
     public function getLines(): array
     {
-        return \array_values(\array_map(rtrim(...), $this->driver->getScreen()->getLines()));
+        return \array_map(rtrim(...), $this->driver->getScreen()->getLines());
     }
 
     /**
@@ -353,7 +369,6 @@ final class Session
 
     public function assertNotSee(string $text): void
     {
-        $this->settle();
         $this->waitUntil(
             static fn (self $s): bool => !\str_contains($s->getScreenText(), $text),
             \sprintf('The text "%s" was found on the screen.', $text),
@@ -370,7 +385,6 @@ final class Session
 
     public function assertNotSeeMatch(string $pattern): void
     {
-        $this->settle();
         $this->waitUntil(
             static fn (self $s): bool => 1 !== \preg_match($pattern, $s->getScreenText()),
             \sprintf('Text on the screen matches %s.', $pattern),
@@ -391,7 +405,6 @@ final class Session
 
     public function assertLineNotContains(int $number, string $text): void
     {
-        $this->settle();
         $this->waitUntil(
             static fn (self $s): bool => !\str_contains($s->lineOrEmpty($number), $text),
             \sprintf('Line %d contains "%s".', $number, $text),
@@ -411,7 +424,6 @@ final class Session
 
     public function assertFieldNotContains(string $selector, string $text): void
     {
-        $this->settle();
         $this->waitUntil(
             fn (): bool => !\str_contains($this->fieldValue($selector), $text),
             fn (): string => \sprintf('The field "%s" has the value "%s", which contains "%s".', $selector, $this->fieldValue($selector), $text),
@@ -427,7 +439,7 @@ final class Session
     {
         [$line, $column] = $this->locateOrFail($text);
         $cells = $this->driver->getScreen()->getCells()[$line - 1] ?? [];
-        $width = new UnicodeString($text)->width(false);
+        $width = new UnicodeString($text)->width();
         $styles = [];
         for ($col = $column - 1; $col < ($column - 1 + $width); ++$col) {
             // Skip the second cell of a wide character, which only repeats the first
@@ -552,7 +564,7 @@ final class Session
 
         $expected = self::normalize($expected);
         $rows = \explode("\n", $expected);
-        $width = \max(\array_map(static fn (string $row): int => new UnicodeString($row)->width(false), $rows));
+        $width = \max(\array_map(static fn (string $row): int => new UnicodeString($row)->width(), $rows));
 
         $this->waitUntil(
             fn (): bool => $this->getRegion($line, $column, $width, \count($rows)) === $expected,
@@ -579,7 +591,7 @@ final class Session
                 // A wide character fills its first cell and leaves the next one empty
                 $text .= $cells[$row][$col]['char'] ?? ' ';
             }
-            $rows[] = \rtrim($text);
+            $rows[] = $text;
         }
 
         return self::normalize(\implode("\n", $rows));
@@ -661,7 +673,6 @@ final class Session
      */
     public function assertElementNotVisible(string $selector): void
     {
-        $this->settle();
         $this->waitUntil(
             fn (): bool => [] === $this->findVisible($selector),
             fn (): string => \sprintf('Elements matching "%s" are on the screen: %s.', $selector, self::describeAll($this->findVisible($selector))),
@@ -683,7 +694,6 @@ final class Session
 
     public function assertNotSeeIn(string $selector, string $text): void
     {
-        $this->settle();
         $this->waitUntil(
             fn (): bool => [] === $this->findShowing($selector, $text),
             fn (): string => \sprintf("The text \"%s\" was found in \"%s\":\n%s", $text, $selector, self::showAll($this->findShowing($selector, $text))),
@@ -738,13 +748,13 @@ final class Session
             if (!$update && '' !== (string) \getenv('CI')) {
                 throw new ExpectationException(\sprintf('The snapshot "%s" does not exist; record it locally and commit it.', $path), $this->dump());
             }
-            $this->settle();
-            if (!\is_dir(\dirname($path)) && !\mkdir(\dirname($path), permissions: 0o777, recursive: true) && !\is_dir(\dirname($path))) {
-                throw new \RuntimeException(\sprintf('Cannot create the snapshot directory "%s".', \dirname($path)));
+            $directory = \dirname($path);
+            [$created, $warning] = Warnings::capture(static fn (): bool => \is_dir($directory) || \mkdir($directory, recursive: true));
+            if (!$created) {
+                throw new \RuntimeException(\sprintf('Cannot create the snapshot directory "%s": %s', $directory, $warning ?? 'unknown error'));
             }
+            // The comparison below then reads back what was just written
             \file_put_contents($path, $this->snapshot()."\n");
-
-            return;
         }
 
         $this->assertScreenEquals((string) \file_get_contents($path));
@@ -805,10 +815,12 @@ final class Session
      */
     private function locate(string $text): ?array
     {
-        foreach ($this->getLines() as $i => $line) {
+        $row = 0;
+        foreach ($this->getLines() as $line) {
+            ++$row;
             $offset = \mb_strpos($line, $text);
             if (false !== $offset) {
-                return [$i + 1, new UnicodeString(\mb_substr($line, start: 0, length: $offset))->width(false) + 1];
+                return [$row, new UnicodeString(\mb_substr($line, start: 0, length: $offset))->width() + 1];
             }
         }
 
@@ -856,12 +868,18 @@ final class Session
      */
     private function locateOrFail(string $text): array
     {
+        $position = null;
         $this->waitUntil(
-            fn (): bool => null !== $this->locate($text),
+            function () use ($text, &$position): bool {
+                $position = $this->locate($text);
+
+                return null !== $position;
+            },
             \sprintf('The text "%s" was not found on the screen.', $text),
         );
+        \assert(null !== $position, description: 'waitUntil() returns once the text is found.');
 
-        return $this->locate($text) ?? throw new ExpectationException(\sprintf('The text "%s" was not found on the screen.', $text), $this->dump());
+        return $position;
     }
 
     private function describeStyles(string $text): string
@@ -879,19 +897,19 @@ final class Session
     }
 
     /**
-     * @return list<Element>
+     * @return array<int, Element>
      */
     private function findVisible(string $selector): array
     {
-        return \array_values(\array_filter($this->find($selector), static fn (Element $e): bool => $e->isVisible()));
+        return \array_filter($this->find($selector), static fn (Element $e): bool => $e->isVisible());
     }
 
     /**
-     * @return list<Element>
+     * @return array<int, Element>
      */
     private function findShowing(string $selector, string $text): array
     {
-        return \array_values(\array_filter($this->find($selector), static fn (Element $e): bool => \str_contains($e->text, $text)));
+        return \array_filter($this->find($selector), static fn (Element $e): bool => \str_contains($e->text, $text));
     }
 
     private function describeMatches(string $selector, string $expectation): string
@@ -905,7 +923,7 @@ final class Session
     }
 
     /**
-     * @param list<Element> $elements
+     * @param array<int, Element> $elements
      */
     private static function describeAll(array $elements): string
     {
@@ -913,7 +931,7 @@ final class Session
     }
 
     /**
-     * @param list<Element> $elements
+     * @param array<int, Element> $elements
      */
     private static function showAll(array $elements): string
     {
@@ -951,7 +969,7 @@ final class Session
 
     private static function normalize(string $text): string
     {
-        $lines = \array_map(rtrim(...), \explode("\n", \str_replace("\r\n", replace: "\n", subject: $text)));
+        $lines = \array_map(rtrim(...), \explode("\n", $text));
         while ([] !== $lines && '' === \end($lines)) {
             \array_pop($lines);
         }

@@ -13,7 +13,9 @@ namespace Janalis\Tuink\Tests;
 
 use Janalis\Tuink\Driver\InProcessDriver;
 use Janalis\Tuink\Driver\ProcessDriver;
+use Janalis\Tuink\Exception\DriverException;
 use Janalis\Tuink\Tuink;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
 final class TuinkTest extends TestCase
@@ -90,7 +92,73 @@ final class TuinkTest extends TestCase
         $this->assertSame(30, $session->getRows());
     }
 
-    private function tuink(int $columns = 80, int $rows = 24, string $factory = 'example/factory.php'): Tuink
+    public function testDefaults(): void
+    {
+        $session = new Tuink(['in_process' => static fn (): InProcessDriver => new InProcessDriver(static fn () => null)], defaultDriver: 'in_process')->getSession();
+
+        $this->assertSame(80, $session->getColumns());
+        $this->assertSame(24, $session->getRows());
+        $this->assertSame(2.0, $session->getTimeout());
+        // A driver without its own quiet period gets the process one
+        $this->assertSame(Tuink::PROCESS_QUIET_PERIOD, $session->getQuietPeriod());
+    }
+
+    public function testQuietPeriodsPerDriver(): void
+    {
+        $tuink = $this->tuink();
+        $this->assertSame(Tuink::IN_PROCESS_QUIET_PERIOD, $tuink->getSession()->getQuietPeriod());
+        $tuink->useDriver('process');
+        $this->assertSame(Tuink::PROCESS_QUIET_PERIOD, $tuink->getSession()->getQuietPeriod());
+
+        $tuink = $this->tuink(quietPeriod: 0.3);
+        $this->assertSame(0.3, $tuink->getSession()->getQuietPeriod());
+        $tuink->useDriver('process');
+        $this->assertSame(0.3, $tuink->getSession()->getQuietPeriod());
+    }
+
+    /**
+     * @return iterable<string, array{string, string}>
+     */
+    public static function factoryPaths(): iterable
+    {
+        yield 'relative' => ['missing.php', \dirname(__DIR__).'/missing.php'];
+        yield 'absolute' => ['/missing.php', '/missing.php'];
+        yield 'windows drive' => ['C:/missing.php', 'C:/missing.php'];
+        yield 'windows backslash' => ['C:\\missing.php', 'C:\\missing.php'];
+        yield 'a drive letter further in is relative' => ['dir/C:/missing.php', \dirname(__DIR__).'/dir/C:/missing.php'];
+    }
+
+    #[DataProvider('factoryPaths')]
+    public function testPathsAreResolvedFromTheBasePath(string $factory, string $resolved): void
+    {
+        $this->expectException(DriverException::class);
+        $this->expectExceptionMessageIsOrContains(\sprintf('The in-process factory file "%s" does not exist.', $resolved));
+
+        $this->tuink(factory: $factory)->getSession();
+    }
+
+    public function testResetStopsTheApplication(): void
+    {
+        $tuink = $this->tuink();
+        $session = $tuink->getSession();
+        $session->start();
+        $tuink->reset();
+
+        $this->assertFalse($session->getDriver()->isStarted());
+    }
+
+    public function testRestoreDefaultsStartsAfresh(): void
+    {
+        $tuink = $this->tuink();
+        $session = $tuink->getSession();
+        $session->start();
+        $tuink->restoreDefaults();
+
+        $this->assertFalse($session->getDriver()->isStarted());
+        $this->assertNotSame($session, $tuink->getSession());
+    }
+
+    private function tuink(int $columns = 80, int $rows = 24, string $factory = 'example/factory.php', ?float $quietPeriod = null): Tuink
     {
         return Tuink::fromConfig(
             [
@@ -98,10 +166,10 @@ final class TuinkTest extends TestCase
                 'columns' => $columns,
                 'rows' => $rows,
                 'timeout' => 1.0,
-                'quiet_period' => null,
+                'quiet_period' => $quietPeriod,
                 'snapshots' => null,
                 'in_process' => ['factory' => $factory],
-                'process' => ['command' => ['php', 'example/bin/demo'], 'cwd' => null, 'env' => []],
+                'process' => ['command' => ['php', 'example/bin/demo'], 'cwd' => '.', 'env' => [], 'probe_timeout' => 2.0],
             ],
             \dirname(__DIR__),
         );

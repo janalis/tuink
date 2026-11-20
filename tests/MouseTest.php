@@ -45,6 +45,8 @@ final class MouseTest extends TestCase
         yield 'shift alt ctrl' => [Mouse::click(1, column: 1, modifiers: ['Shift', 'Alt', 'Ctrl']), "\x1b[<28;1;1M\x1b[<28;1;1m"];
         yield 'repeated modifier' => [Mouse::click(1, column: 1, modifiers: ['ctrl', 'Ctrl']), "\x1b[<16;1;1M\x1b[<16;1;1m"];
         yield 'hover' => [Mouse::move(4, column: 9), "\x1b[<35;9;4M"];
+        yield 'wheel up, any case' => [Mouse::scroll(5, column: 6, direction: 'Up'), "\x1b[<64;6;5M"];
+        yield 'drag, any case' => [Mouse::drag([[1, 1], [1, 2]], button: 'Right'), "\x1b[<2;1;1M\x1b[<34;2;1M\x1b[<2;2;1m"];
         yield 'wheel up' => [Mouse::scroll(5, column: 6, direction: 'up'), "\x1b[<64;6;5M"];
         yield 'wheel down twice' => [Mouse::scroll(5, column: 6, direction: 'down', notches: 2), "\x1b[<65;6;5M\x1b[<65;6;5M"];
         yield 'wheel right with shift' => [Mouse::scroll(1, column: 1, direction: 'right', notches: 1, modifiers: ['shift']), "\x1b[<71;1;1M"];
@@ -68,6 +70,12 @@ final class MouseTest extends TestCase
         yield 'direction' => [static fn () => Mouse::scroll(1, column: 1, direction: 'sideways'), 'Unknown scroll direction "sideways"'];
         yield 'origin' => [static fn () => Mouse::click(0, column: 1), 'start at line 1, column 1'];
         yield 'short drag' => [static fn () => Mouse::drag([[1, 1]]), 'at least two cells'];
+        yield 'no click' => [static fn () => Mouse::click(1, column: 1, count: 0), 'A click needs a count of 1 or more, not 0.'];
+        yield 'no notch' => [static fn () => Mouse::scroll(1, column: 1, direction: 'up', notches: 0), 'A scroll needs a count of 1 or more, not 0.'];
+        yield 'hover origin' => [static fn () => Mouse::move(0, column: 1), 'start at line 1, column 1'];
+        yield 'scroll origin' => [static fn () => Mouse::scroll(1, column: 0, direction: 'up'), 'start at line 1, column 1'];
+        yield 'drag origin' => [static fn () => Mouse::drag([[1, 1], [0, 1]]), 'start at line 1, column 1'];
+        yield 'drag button' => [static fn () => Mouse::drag([[1, 1], [1, 2]], button: 'fourth'), 'Unknown mouse button "fourth"'];
     }
 
     /**

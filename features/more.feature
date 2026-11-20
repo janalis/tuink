@@ -35,9 +35,11 @@ Feature: Forms, counts, negations, styles and the terminal
 
   Scenario: Hovering
     When I hover over "#color"
-    And I hover over the text "Blue"
-    And I hover at line 1, column 1
-    Then the app should be running
+    Then I should see "Hover at 6:40"
+    When I hover over the text "Blue"
+    Then I should see "Hover at 7:3"
+    When I hover at line 1, column 1
+    Then I should see "Hover at 1:1"
 
   Scenario: Styles
     Then the text "Tuink demo" should be bold

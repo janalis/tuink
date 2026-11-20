@@ -104,6 +104,22 @@ final class ProcessDriverTest extends TestCase
         $this->assertSame('Ada!', $session->findOne('#name')->value);
     }
 
+    public function testAProbeRequestWhileTheApplicationIsBlockedOnItsOutput(): void
+    {
+        $driver = new ProcessDriver([\PHP_BINARY, 'tests/Fixtures/apps/big-frames.php'], \dirname(__DIR__), probeTimeout: 5.0);
+        $this->session = new Session($driver, 200, 100, 10.0);
+        $this->session->start();
+
+        // The key starts a timer that writes 200 kB at a time; with the driver not reading, the application blocks on
+        // its output and only answers the request if the driver keeps draining it while it waits
+        $driver->send('b');
+        $driver->pump(0.1);
+        \usleep(300_000);
+        $tree = $driver->getWidgetTree();
+
+        $this->assertStringContainsString('id="page"', $tree->toXml());
+    }
+
     public function testAnApplicationWithoutTheProbe(): void
     {
         $driver = new ProcessDriver([\PHP_BINARY, 'example/bin/demo'], \dirname(__DIR__), ['TUINK_PROBE' => ''], probeTimeout: 0.3);
@@ -172,6 +188,14 @@ final class ProcessDriverTest extends TestCase
         $this->session->assertExited();
         // 127 where sh reports a missing command, 126 where it reports it cannot run it (macOS)
         $this->assertContains($this->session->getDriver()->getExitCode(), [126, 127]);
+    }
+
+    public function testNothingWorksBeforeStart(): void
+    {
+        $this->expectException(DriverException::class);
+        $this->expectExceptionMessageIsOrContains('The application is not started.');
+
+        new ProcessDriver(['true'])->resize(columns: 10, rows: 5);
     }
 
     public function testAnEmptyCommand(): void

@@ -34,8 +34,7 @@ final class TuiProbe
 {
     public const ENV = 'TUINK_PROBE';
 
-    private string $buffer = '';
-    private ?string $callbackId = null;
+    private string $callbackId;
 
     /**
      * @param resource $socket
@@ -62,7 +61,6 @@ final class TuiProbe
         if (false === $socket) {
             throw new \RuntimeException(\sprintf('The tuink probe cannot connect to "%s": %s', $path, $warning ?? 'unknown error'));
         }
-        \stream_set_blocking($socket, enable: false);
 
         $probe = new self($tui, $socket);
         $probe->callbackId = EventLoop::onReadable($socket, $probe->read(...));
@@ -74,19 +72,15 @@ final class TuiProbe
 
     private function read(): void
     {
-        $data = \fread($this->socket, length: 65_536);
-        if (false === $data || ('' === $data && \feof($this->socket))) {
+        // The driver sends one request and waits for its answer, so a readable socket holds one whole line
+        $request = \fgets($this->socket);
+        if (false === $request) {
             $this->close();
 
             return;
         }
 
-        $this->buffer .= $data;
-        while (false !== ($end = \strpos($this->buffer, needle: "\n"))) {
-            $line = \substr($this->buffer, offset: 0, length: $end);
-            $this->buffer = \substr($this->buffer, $end + 1);
-            $this->reply($this->handle($line));
-        }
+        $this->reply($this->handle($request));
     }
 
     /**
@@ -95,7 +89,7 @@ final class TuiProbe
     private function handle(string $line): array
     {
         try {
-            $request = self::request(\json_decode($line, associative: true, depth: 8, flags: \JSON_THROW_ON_ERROR));
+            $request = self::request(\json_decode($line, associative: true, flags: \JSON_THROW_ON_ERROR));
 
             return match ($request['op'] ?? null) {
                 'tree' => ['xml' => WidgetTree::fromTui($this->tui)->toXml()],
@@ -129,7 +123,6 @@ final class TuiProbe
             throw new \OutOfRangeException(\sprintf('No widget has the index %s.', \json_encode($index)));
         }
         $this->tui->setFocus($widget);
-        $this->tui->requestRender();
 
         return ['ok' => true];
     }
@@ -139,32 +132,14 @@ final class TuiProbe
      */
     private function reply(array $response): void
     {
-        $payload = \json_encode($response, \JSON_THROW_ON_ERROR | \JSON_INVALID_UTF8_SUBSTITUTE)."\n";
-        \stream_set_blocking($this->socket, enable: true);
-        try {
-            for ($written = 0, $length = \strlen($payload); $written < $length; $written += $chunk) {
-                $chunk = \fwrite($this->socket, \substr($payload, $written));
-                if (false === $chunk || 0 === $chunk) {
-                    $this->close();
-
-                    return;
-                }
-            }
-        } finally {
-            if (\is_resource($this->socket)) {
-                \stream_set_blocking($this->socket, enable: false);
-            }
-        }
+        $payload = \json_encode($response, \JSON_THROW_ON_ERROR)."\n";
+        // If the driver is gone, the write fails with a warning and the next read sees the end of the stream
+        Warnings::capture(fn (): int|false => \fwrite($this->socket, $payload));
     }
 
     private function close(): void
     {
-        if (null !== $this->callbackId) {
-            EventLoop::cancel($this->callbackId);
-            $this->callbackId = null;
-        }
-        if (\is_resource($this->socket)) {
-            \fclose($this->socket);
-        }
+        EventLoop::cancel($this->callbackId);
+        \fclose($this->socket);
     }
 }

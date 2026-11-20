@@ -123,7 +123,7 @@ final class Keys
 
         // "+" alone, or a trailing "+" as in "Ctrl++", names the plus key itself
         $parts = '+' === $spec ? ['+'] : \explode('+', $spec);
-        if ('' === \end($parts) && \count($parts) > 1) {
+        if ('' === \end($parts)) {
             \array_pop($parts);
             $parts[\count($parts) - 1] = '+';
         }
@@ -167,17 +167,17 @@ final class Keys
             return 1 === $modifier ? "\r" : "\x1b[27;{$modifier};13~";
         }
         if ('space' === $lower && 4 === ($bits & 5)) {
-            return (0 !== ($bits & 2) ? "\x1b" : '')."\x00";
+            return self::alt($bits)."\x00";
         }
         if (!\array_key_exists($lower, self::NAMED)) {
             return null;
         }
         if (0 !== ($bits & 5)) {
             // Legacy encodings have no room for Shift or Ctrl here: send the CSI u form (kitty keyboard protocol), which the Tui key parser reads
-            return \sprintf("\x1b[%d;%du", \ord(\substr(self::NAMED[$lower], offset: -1)), $modifier);
+            return \sprintf("\x1b[%d;%du", \ord(self::NAMED[$lower]), $modifier);
         }
 
-        return (0 !== ($bits & 2) ? "\x1b" : '').self::NAMED[$lower];
+        return self::alt($bits).self::NAMED[$lower];
     }
 
     private static function character(string $base, int $modifier, string $name): string
@@ -196,7 +196,15 @@ final class Keys
             $char = self::control($char, $name);
         }
 
-        return (0 !== ($bits & 2) ? "\x1b" : '').$char;
+        return self::alt($bits).$char;
+    }
+
+    /**
+     * ESC, which a terminal sends before a key held with Alt.
+     */
+    private static function alt(int $bits): string
+    {
+        return 0 !== ($bits & 2) ? "\x1b" : '';
     }
 
     private static function control(string $char, string $name): string

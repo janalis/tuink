@@ -66,12 +66,10 @@ final class WidgetTree
     {
         $document = new \DOMDocument();
         $internal = \libxml_use_internal_errors(true);
-        try {
-            $loaded = '' !== $xml && $document->loadXML($xml, \LIBXML_NONET);
-        } finally {
-            \libxml_clear_errors();
-            \libxml_use_internal_errors($internal);
-        }
+        // loadXML() reports problems as libxml errors, never as exceptions
+        $loaded = '' !== $xml && $document->loadXML($xml, \LIBXML_NONET);
+        \libxml_clear_errors();
+        \libxml_use_internal_errors($internal);
         if (!$loaded) {
             throw new \UnexpectedValueException('The widget tree is not valid XML.');
         }
@@ -133,7 +131,7 @@ final class WidgetTree
         }
 
         $rect = $tui->getWidgetRect($widget);
-        if (null !== $rect && $rect->rows > 0 && $rect->columns > 0) {
+        if (null !== $rect) {
             $node->setAttribute(qualifiedName: self::VISIBLE, value: '');
             $node->setAttribute(self::ROW, (string) $rect->row);
             $node->setAttribute(self::COLUMN, (string) $rect->col);

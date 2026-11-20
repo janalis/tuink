@@ -38,7 +38,7 @@ final class Mouse
         $code = (self::BUTTONS[\strtolower($button)] ?? throw new \InvalidArgumentException(\sprintf('Unknown mouse button "%s"; use left, middle or right.', $button))) + self::modifiers($modifiers);
         self::check($line, $column);
 
-        return \str_repeat(self::press($code, $line, $column).self::release($code, $line, $column), \max(1, $count));
+        return \str_repeat(self::press($code, $line, $column).self::release($code, $line, $column), self::count($count, what: 'click'));
     }
 
     /**
@@ -63,7 +63,7 @@ final class Mouse
             + self::modifiers($modifiers);
         self::check($line, $column);
 
-        return \str_repeat(self::press($code, $line, $column), \max(1, $notches));
+        return \str_repeat(self::press($code, $line, $column), self::count($notches, what: 'scroll'));
     }
 
     /**
@@ -98,11 +98,23 @@ final class Mouse
     private static function modifiers(array $modifiers): int
     {
         $code = 0;
-        foreach (\array_unique(\array_map(strtolower(...), $modifiers)) as $modifier) {
+        foreach (\array_map(strtolower(...), $modifiers) as $modifier) {
             $code |= self::MODIFIERS[$modifier] ?? throw new \InvalidArgumentException(\sprintf('Unknown modifier "%s"; use Shift, Alt or Ctrl.', $modifier));
         }
 
         return $code;
+    }
+
+    /**
+     * @return positive-int
+     */
+    private static function count(int $count, string $what): int
+    {
+        if ($count < 1) {
+            throw new \InvalidArgumentException(\sprintf('A %s needs a count of 1 or more, not %d.', $what, $count));
+        }
+
+        return $count;
     }
 
     private static function check(int $line, int $column): void

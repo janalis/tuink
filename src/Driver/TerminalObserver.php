@@ -24,18 +24,16 @@ final class TerminalObserver
 
     public function observe(string $output): void
     {
-        if ('' === $output) {
-            return;
-        }
-
         // OSC 0 and OSC 2 set the window title (OSC 1 is the icon name)
         $matches = [];
         if (\preg_match_all('/\x1b\](?:0|2);([^\x07\x1b]*)(?:\x07|\x1b\\\\)/', $output, $matches)) {
-            $this->title = $matches[1][\count($matches[1]) - 1];
+            $this->title = \array_pop($matches[1]);
         }
 
-        $rest = (string) \preg_replace('/\x1b[\]P_^X][^\x07\x1b]*(?:\x07|\x1b\\\\)/', replacement: '', subject: $output);
-        $this->bells += \substr_count($rest, needle: "\x07");
+        // A BEL that ends a string sequence (OSC, DCS…) is matched with it and does not count
+        $bells = [];
+        \preg_match_all('/\x1b[\]P_^X][^\x07\x1b]*(?:\x07|\x1b\\\\)|(\x07)/', $output, $bells);
+        $this->bells += \count(\array_filter($bells[1]));
     }
 
     public function getBellCount(): int

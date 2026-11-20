@@ -69,7 +69,7 @@ final class OutputBuffer
                 $byte >= 0xC0 => 2,
                 default => 0,
             };
-            if ($needed > 0 && ($i + $needed) > $length && $byte <= 0xF7) {
+            if (($i + $needed) > $length && $byte <= 0xF7) {
                 return $i;
             }
         }

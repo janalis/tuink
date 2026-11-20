@@ -155,26 +155,19 @@ final class InProcessDriver implements DriverInterface, WidgetTreeProviderInterf
     public function resize(int $columns, int $rows): void
     {
         $terminal = $this->terminal();
-        $this->flushOutput();
-        // ScreenBuffer has a fixed size; a resize repaints the whole frame, so a fresh buffer sees all of it
+        // ScreenBuffer has a fixed size; a resize repaints the whole frame, so a fresh buffer sees all of it, and the
+        // repaint clears whatever was written before it
         $this->screen = new ScreenBuffer($columns, $rows);
         $terminal->simulateResize($columns, $rows);
     }
 
     public function pump(float $seconds): bool
     {
-        $tui = $this->tui();
-        if ($tui->isRunning()) {
-            $tui->tick();
-        }
-
+        $terminal = $this->terminal();
+        // The Tui's own ticker runs on the loop, as under Tui::run(): it renders what input and timers changed
         self::runLoop(\max(0.0, $seconds));
 
-        if ($tui->isRunning()) {
-            $tui->tick();
-        }
-
-        return $this->flushOutput();
+        return $this->flushOutput($terminal);
     }
 
     public function getObserver(): TerminalObserver
@@ -207,17 +200,13 @@ final class InProcessDriver implements DriverInterface, WidgetTreeProviderInterf
         return $this->tui();
     }
 
-    private function flushOutput(): bool
+    private function flushOutput(VirtualTerminal $terminal): bool
     {
-        if (null === $this->terminal || null === $this->screen) {
-            return false;
-        }
-
-        $output = $this->terminal->consumeOutput();
+        $output = $terminal->consumeOutput();
         if ('' === $output) {
             return false;
         }
-        $this->screen->write($output);
+        $this->getScreen()->write($output);
         $this->observer->observe($output);
 
         return true;

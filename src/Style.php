@@ -22,8 +22,62 @@ final class Style
 {
     public const ATTRIBUTES = ['bold', 'dim', 'italic', 'underlined', 'blinking', 'reversed', 'hidden', 'struck through'];
 
-    private const NAMES = ['black', 'red', 'green', 'yellow', 'blue', 'magenta', 'cyan', 'white'];
+    /** The 16 standard colors, by palette index */
+    private const PALETTE = [
+        'black',
+        'red',
+        'green',
+        'yellow',
+        'blue',
+        'magenta',
+        'cyan',
+        'white',
+        'bright-black',
+        'bright-red',
+        'bright-green',
+        'bright-yellow',
+        'bright-blue',
+        'bright-magenta',
+        'bright-cyan',
+        'bright-white',
+    ];
     private const CODES = [1 => 'bold', 2 => 'dim', 3 => 'italic', 4 => 'underlined', 21 => 'underlined', 5 => 'blinking', 7 => 'reversed', 8 => 'hidden', 9 => 'struck through'];
+    private const FOREGROUND = [
+        30 => 'black',
+        31 => 'red',
+        32 => 'green',
+        33 => 'yellow',
+        34 => 'blue',
+        35 => 'magenta',
+        36 => 'cyan',
+        37 => 'white',
+        90 => 'bright-black',
+        91 => 'bright-red',
+        92 => 'bright-green',
+        93 => 'bright-yellow',
+        94 => 'bright-blue',
+        95 => 'bright-magenta',
+        96 => 'bright-cyan',
+        97 => 'bright-white',
+    ];
+    private const BACKGROUND = [
+        40 => 'black',
+        41 => 'red',
+        42 => 'green',
+        43 => 'yellow',
+        44 => 'blue',
+        45 => 'magenta',
+        46 => 'cyan',
+        47 => 'white',
+        100 => 'bright-black',
+        101 => 'bright-red',
+        102 => 'bright-green',
+        103 => 'bright-yellow',
+        104 => 'bright-blue',
+        105 => 'bright-magenta',
+        106 => 'bright-cyan',
+        107 => 'bright-white',
+    ];
 
     /**
      * @param list<string> $attributes
@@ -38,7 +92,7 @@ final class Style
     public static function fromSgr(string $sgr): self
     {
         $match = [];
-        if (!\preg_match('/^\x1b\[([0-9;:]*)m$/', $sgr, $match) || '' === $match[1]) {
+        if (!\preg_match('/^\x1b\[([0-9;:]*)m$/', $sgr, $match)) {
             return new self();
         }
 
@@ -50,7 +104,7 @@ final class Style
             // Underline variants are written 4:3 (curly) and the like
             $code = (int) \explode(':', $codes[$i])[0];
             if (\array_key_exists($code, self::CODES)) {
-                $attributes[self::CODES[$code]] = true;
+                $attributes[] = self::CODES[$code];
 
                 continue;
             }
@@ -62,27 +116,17 @@ final class Style
 
                 continue;
             }
-            $foreground = self::basicColor($code, normal: 30, bright: 90) ?? $foreground;
-            $background = self::basicColor($code, normal: 40, bright: 100) ?? $background;
+            $foreground = self::FOREGROUND[$code] ?? $foreground;
+            $background = self::BACKGROUND[$code] ?? $background;
         }
 
-        return new self(\array_keys($attributes), $foreground, $background);
-    }
-
-    /**
-     * The color of a basic SGR code: $normal to $normal + 7, or the bright $bright to $bright + 7.
-     */
-    private static function basicColor(int $code, int $normal, int $bright): ?string
-    {
-        return match (true) {
-            $code >= $normal && $code <= ($normal + 7) => self::NAMES[$code - $normal],
-            $code >= $bright && $code <= ($bright + 7) => 'bright-'.self::NAMES[$code - $bright],
-            default => null,
-        };
+        return new self(\array_values(\array_unique($attributes)), $foreground, $background);
     }
 
     /**
      * The color after 38, 48 or 58: 5;n for the palette, 2;r;g;b for true color.
+     *
+     * A truncated color has run out of codes, so it takes all that are left and yields null.
      *
      * @param list<string> $codes
      *
@@ -90,9 +134,11 @@ final class Style
      */
     private static function extendedColor(array $codes, int $at): array
     {
+        $left = \count($codes) - $at;
+
         return match ($codes[$at] ?? null) {
-            '5' => [self::name((string) (int) ($codes[$at + 1] ?? 0)), 2],
-            '2' => [\sprintf('#%02x%02x%02x', (int) ($codes[$at + 1] ?? 0), (int) ($codes[$at + 2] ?? 0), (int) ($codes[$at + 3] ?? 0)), 4],
+            '5' => $left > 1 ? [self::name($codes[$at + 1]), 2] : [null, $left],
+            '2' => $left > 3 ? [\sprintf('#%02x%02x%02x', (int) $codes[$at + 1], (int) $codes[$at + 2], (int) $codes[$at + 3]), 4] : [null, $left],
             default => [null, 0],
         };
     }
@@ -112,18 +158,11 @@ final class Style
         }
         if (\ctype_digit($color)) {
             $index = (int) $color;
-            if ($index < 8) {
-                return self::NAMES[$index];
-            }
-            if ($index < 16) {
-                return 'bright-'.self::NAMES[$index - 8];
-            }
 
-            return (string) $index;
+            return self::PALETTE[$index] ?? (string) $index;
         }
-        $color = (string) \preg_replace('/[\s_]+/', replacement: '-', subject: $color);
-        $base = \str_starts_with($color, 'bright-') ? \substr($color, offset: 7) : $color;
-        if (!\in_array($base, self::NAMES, strict: true)) {
+        $color = \strtr($color, from: ' _', to: '--');
+        if (!\in_array($color, self::PALETTE, strict: true)) {
             throw new \InvalidArgumentException(\sprintf('Unknown color "%s": use a name like "red" or "bright red", a palette index, or "#rrggbb".', $color));
         }
 

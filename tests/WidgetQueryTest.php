@@ -17,8 +17,11 @@ use Janalis\Tuink\Exception\ExpectationException;
 use Janalis\Tuink\Selector\Element;
 use Janalis\Tuink\Selector\WidgetTree;
 use Janalis\Tuink\Session;
+use Janalis\Tuink\Tests\Fixtures\Widget\ValueWidget;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
+use Symfony\Component\Tui\Style\Direction;
+use Symfony\Component\Tui\Style\Style;
 use Symfony\Component\Tui\Terminal\VirtualTerminal;
 use Symfony\Component\Tui\Tui;
 use Symfony\Component\Tui\Widget\ContainerWidget;
@@ -69,6 +72,7 @@ final class WidgetQueryTest extends TestCase
         yield 'not' => ['#form > :not(input)', ['text#greeting.message', 'select-list#color']];
         yield 'focus' => [':focus', ['input#name']];
         yield 'visible' => ['.message:visible', []];
+        yield 'visible and drawn' => ['text:visible', ['text.title', 'text#status', 'text#size', 'text']];
         yield 'contains' => ["text:contains('Status')", ['text#status']];
         yield 'contains through children' => ["container:contains('Blue')", ['container', 'container#form']];
         yield 'attribute' => ['[value=""]', ['input#name']];
@@ -160,8 +164,18 @@ final class WidgetQueryTest extends TestCase
 
     public function testInvalidXml(): void
     {
-        $this->expectException(\UnexpectedValueException::class);
-        WidgetTree::fromXml('<container');
+        $internal = \libxml_use_internal_errors(true);
+
+        try {
+            WidgetTree::fromXml('<container');
+            $this->fail('An unexpected value exception was expected.');
+        } catch (\UnexpectedValueException $e) {
+            $this->assertSame('The widget tree is not valid XML.', $e->getMessage());
+            // The parse errors do not linger for whoever reads libxml's errors next
+            $this->assertSame([], \libxml_get_errors());
+        } finally {
+            \libxml_use_internal_errors($internal);
+        }
     }
 
     /**
@@ -240,6 +254,90 @@ final class WidgetQueryTest extends TestCase
 
         // In process, elements carry their widget.
         $this->assertSame('name', $session->findOne('input')->widget?->getId());
+    }
+
+    /**
+     * @return iterable<string, array{mixed, mixed, ?string, ?string}>
+     */
+    public static function customWidgets(): iterable
+    {
+        yield 'string value' => ['Ada', null, 'Ada', null];
+        yield 'int value' => [5, null, '5', null];
+        yield 'float value' => [1.5, null, '1.5', null];
+        yield 'bool value' => [true, null, null, null];
+        yield 'array value' => [['Ada'], null, null, null];
+        yield 'selected label' => [null, ['label' => 'Red'], null, 'Red'];
+        yield 'label that is not a string' => [null, ['label' => 7], null, null];
+        yield 'item that is not an array' => [null, 'Red', null, null];
+    }
+
+    #[DataProvider('customWidgets')]
+    public function testValuesOfCustomWidgets(mixed $value, mixed $selectedItem, ?string $expectedValue, ?string $expectedSelected): void
+    {
+        $this->session = new Session(
+            new InProcessDriver(static function (VirtualTerminal $terminal) use ($value, $selectedItem): Tui {
+                $tui = new Tui(terminal: $terminal);
+                $tui->add(new ValueWidget($value, $selectedItem)->setId('custom'));
+
+                return $tui;
+            }),
+            timeout: 0.1,
+            quietPeriod: 0.02,
+        );
+        $this->session->start();
+        $element = $this->session->findOne('#custom');
+
+        $this->assertSame('value', $element->name);
+        $this->assertSame($expectedValue, $element->value);
+        $this->assertSame($expectedSelected, $element->selected);
+    }
+
+    public function testAWidgetDrawnAwayFromTheLeftEdge(): void
+    {
+        $this->session = new Session(
+            new InProcessDriver(static function (VirtualTerminal $terminal): Tui {
+                $tui = new Tui(terminal: $terminal);
+                $row = new ContainerWidget()->setStyle(new Style(direction: Direction::Horizontal));
+                $row->add(new TextWidget('left')->setId('left'));
+                $row->add(new TextWidget('right')->setId('right'));
+                $tui->add($row);
+
+                return $tui;
+            }),
+            40,
+            5,
+            0.1,
+            0.02,
+        );
+        $this->session->start();
+        $right = $this->session->findOne('#right');
+
+        $this->assertGreaterThan(0, $right->rect?->col);
+        $this->assertSame('right', $right->text);
+    }
+
+    public function testLabels(): void
+    {
+        $this->session = new Session(
+            new InProcessDriver(static function (VirtualTerminal $terminal): Tui {
+                $tui = new Tui(terminal: $terminal);
+                $tui->add(
+                    new TextWidget('labelled')
+                        ->setId('with')
+                        ->setLabel('Path'),
+                );
+                $tui->add(new TextWidget('bare')->setId('without'));
+
+                return $tui;
+            }),
+            timeout: 0.1,
+            quietPeriod: 0.02,
+        );
+        $this->session->start();
+
+        $this->assertSame('Path', $this->session->findOne('#with')->label);
+        $this->assertNull($this->session->findOne('#without')->label);
+        $this->assertSame(['text#with'], \array_map(static fn (Element $e): string => $e->describe(), $this->session->find('[label="Path"]')));
     }
 
     private function demo(float $timeout = 1.0): Session

@@ -55,6 +55,36 @@ final class TuinkArgumentResolverTest extends TestCase
         $this->assertSame([], new TuinkArgumentResolver($this->tuink())->resolveArguments(new \ReflectionClass(\stdClass::class), []));
     }
 
+    public function testUnionTypesAreLeftAlone(): void
+    {
+        $context = new class(null) {
+            public function __construct(
+                public Tuink|string|null $value,
+            ) {
+            }
+        };
+
+        $this->assertSame([], new TuinkArgumentResolver($this->tuink())->resolveArguments(new \ReflectionClass($context), []));
+    }
+
+    public function testEveryTuinkParameterIsConsidered(): void
+    {
+        $tuink = $this->tuink();
+        $mine = $this->tuink();
+        $context = new class('x', $tuink, $tuink) {
+            public function __construct(
+                public string $other,
+                public Tuink $first,
+                public Tuink $second,
+            ) {
+            }
+        };
+
+        $arguments = new TuinkArgumentResolver($tuink)->resolveArguments(new \ReflectionClass($context), ['other' => 'x', 'first' => $mine]);
+
+        $this->assertSame(['other' => 'x', 'first' => $mine, 'second' => $tuink], $arguments);
+    }
+
     private function tuink(): Tuink
     {
         return new Tuink(['in_process' => static fn () => new InProcessDriver(static fn () => null)], 'in_process');
