@@ -139,7 +139,7 @@ final class WorkspaceTest extends TestCase
         $workspace->createDirectory('taken');
 
         $this->expectException(\RuntimeException::class);
-        $this->expectExceptionMessageMatches('~^Cannot write "taken": file_put_contents\(.+\): Failed to open stream: Is a directory$~');
+        $this->expectExceptionMessageMatches('~^Cannot write "taken": file_put_contents\(.*\): Failed to open stream: Is a directory$~');
         $workspace->write('taken', content: 'x');
     }
 
