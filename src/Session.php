@@ -656,6 +656,17 @@ final class Session
     }
 
     /**
+     * Checks that every cell of the text has a foreground color, whichever it is, or that none has one.
+     */
+    public function assertTextHasColor(string $text, bool $colored = true): void
+    {
+        $this->waitUntil(
+            fn (): bool => [] === \array_filter($this->getTextStyles($text), static fn (Style $s): bool => (null !== $s->foreground) !== $colored),
+            fn (): string => \sprintf('The text "%s" %s: %s.', $text, $colored ? 'is not colored' : 'is colored', $this->describeStyles($text)),
+        );
+    }
+
+    /**
      * Checks the background color of every cell of the text.
      */
     public function assertTextBackground(string $text, string $color): void
@@ -694,6 +705,33 @@ final class Session
             static fn (self $s): bool => \str_contains($s->lineOrEmpty($number), $text),
             \sprintf('Line %d does not contain "%s".', $number, $text),
         );
+    }
+
+    /**
+     * Checks the first line showing $anchor for $text, or that it does not show it: what trails a line of code, a row's state.
+     */
+    public function assertLineShowingContains(string $anchor, string $text, bool $contains = true): void
+    {
+        $this->waitUntil(
+            static fn (self $s): bool => null !== ($line = $s->lineShowing($anchor)) && \str_contains($line, $text) === $contains,
+            fn (): string => null === $this->lineShowing($anchor)
+                ? \sprintf('No line shows "%s".', $anchor)
+                : \sprintf('The line showing "%s" %s "%s": %s', $anchor, $contains ? 'does not contain' : 'contains', $text, $this->lineShowing($anchor)),
+        );
+    }
+
+    /**
+     * The first line of the screen that contains $anchor, or null.
+     */
+    public function lineShowing(string $anchor): ?string
+    {
+        foreach ($this->getLines() as $line) {
+            if (\str_contains($line, $anchor)) {
+                return $line;
+            }
+        }
+
+        return null;
     }
 
     public function assertLineEquals(int $number, string $text): void

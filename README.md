@@ -112,6 +112,7 @@ return static fn (VirtualTerminal $terminal, Launch $launch): InProcessApplicati
 | `Given the environment variable "HOME" is "%workspace%/home"` | Before the start; see [Workspace](#workspace-arguments-and-environment) |
 | `Given the terminal supports the kitty keyboard protocol`     | Before the start                                                |
 | `Given a file "src/a.php" containing:` + doc string           | In the workspace; also `containing "text"`, `an empty file "…"`, `a directory "…"` |
+| `Given an executable file "bin/tool" containing:` + doc string | Written, then made executable (0755), as a stand-in for a tool |
 | `When I delete "src/a.php"`                                   | Or `remove`; a file or a directory                              |
 | `Then the file "out.txt" should [not] exist`                  | Waits for the app to write it                                   |
 | `Then the file "out.txt" should [not] contain "text"`         | Both fail when the file does not exist                          |
@@ -150,6 +151,8 @@ return static fn (VirtualTerminal $terminal, Launch $launch): InProcessApplicati
 | `Then the text "Saved" should [not] be bold`                  | Or `dim`, `italic`, `underlined`, `blinking`, `reversed`, `hidden`, `struck through` |
 | `Then the text "Error" should be colored "red"`               | `red`, `bright red`, a palette index, `#rrggbb`                 |
 | `Then the text "…" should have the background "#1e1e2e"`      |                                                                 |
+| `Then the text "…" should have a color` / `no color`          | Some foreground color on every cell, or none on any             |
+| `Then the line showing "a.php" should [not] contain "✗"`      | The first line on which the first text shows                    |
 | `Then the terminal should have rung the bell [2 times]`       | See [Bell and title](#bell-and-title)                           |
 | `Then the terminal title should be "…"`                       | OSC 0 or 2                                                      |
 | `Then the clipboard should contain "text"` / `should be:`     | What the app last copied with OSC 52                            |
@@ -298,7 +301,7 @@ The bell counts BEL characters outside escape sequences; the title is the last o
 
 ### Keys
 
-Names are case-insensitive, with optional angle brackets: `Enter`, `Escape`, `Tab`, `Space`, `Backspace`, `Delete`, `Insert`, `Up`, `Down`, `Left`, `Right`, `Home`, `End`, `PageUp`, `PageDown` (or `Page_Up`, `Page_Down`), `F1`–`F12`, `FocusIn` and `FocusOut` (the reports a terminal sends when its window gains or loses the focus), or any single character. Modifiers join with `+`: `Ctrl+S`, `Shift+Tab`, `Alt+Left`, `Ctrl+Shift+Up`, `Super+S` (also `Cmd+S`; macOS's Command key, which only the kitty keyboard protocol carries, so every Super combination goes as CSI u). Combinations without a legacy encoding, like `Ctrl+Tab`, `Shift+Backspace`, `Ctrl+Shift+A` or `Ctrl+,`, go in the CSI u form of the kitty keyboard protocol, which the Symfony Tui key parser reads. In `I send`, a key is a word of two letters or more (`<Enter>`, `<F5>`) or carries a modifier (`<Alt+x>`); `<b>` stays text.
+Names are case-insensitive, with optional angle brackets: `Enter`, `Escape`, `Tab`, `Space`, `Backspace`, `Delete`, `Insert`, `Up`, `Down`, `Left`, `Right`, `Home`, `End`, `PageUp`, `PageDown` (or `Page_Up`, `Page_Down`), `F1`–`F12`, `FocusIn` and `FocusOut` (the reports a terminal sends when its window gains or loses the focus), or any single character. A letter is the same key in either case once modified: `Ctrl+S` and `Alt+S` are `Ctrl+s` and `Alt+s`; Shift is what makes a capital (`Alt+Shift+S`). Modifiers join with `+`: `Ctrl+S`, `Shift+Tab`, `Alt+Left`, `Ctrl+Shift+Up`, `Super+S` (also `Cmd+S`; macOS's Command key, which only the kitty keyboard protocol carries, so every Super combination goes as CSI u). Combinations without a legacy encoding, like `Ctrl+Tab`, `Shift+Backspace`, `Ctrl+Shift+A` or `Ctrl+,`, go in the CSI u form of the kitty keyboard protocol, which the Symfony Tui key parser reads. In `I send`, a key is a word of two letters or more (`<Enter>`, `<F5>`) or carries a modifier (`<Alt+x>`); `<b>` stays text.
 
 ### Snapshots
 

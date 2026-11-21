@@ -73,3 +73,11 @@ Feature: What the application starts with, and the files it works on
     Given the terminal supports the kitty keyboard protocol
     And I start the app
     Then I should see "kitty keys"
+
+  Scenario: An executable file
+    Given an executable file "bin/tool" containing:
+      """
+      #!/bin/sh
+      echo hi
+      """
+    Then the file "bin/tool" should contain "echo hi"

@@ -260,6 +260,18 @@ class TuiContext implements TuinkAwareContextInterface
         $this->getSession()->assertTextColor($text, $color);
     }
 
+    #[Then('/^the text "([^"]+)" should have (a|no) colou?r$/')]
+    public function assertTextHasColor(string $text, string $which): void
+    {
+        $this->getSession()->assertTextHasColor($text, 'a' === $which);
+    }
+
+    #[Then('/^the line showing "([^"]+)" should (not )?contain "([^"]*)"$/')]
+    public function assertLineShowingContains(string $anchor, string $not, string $text): void
+    {
+        $this->getSession()->assertLineShowingContains($anchor, $text, '' === $not);
+    }
+
     #[Then('/^the text "([^"]+)" should have the background "([^"]+)"$/')]
     public function assertTextBackground(string $text, string $color): void
     {

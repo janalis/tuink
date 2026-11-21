@@ -79,6 +79,24 @@ final class WorkspaceTest extends TestCase
         $this->assertFalse($workspace->exists('a/c'));
     }
 
+    public function testMakingAFileExecutable(): void
+    {
+        $workspace = $this->workspace();
+        $workspace->write('bin/tool', content: "#!/bin/sh\n");
+        \chmod($workspace->path.'/bin/tool', 0o600);
+        $workspace->makeExecutable('bin/tool');
+
+        $this->assertSame(0o755, \fileperms($workspace->path.'/bin/tool') & 0o777);
+    }
+
+    public function testMakingAMissingFileExecutable(): void
+    {
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessageIsOrContains('Cannot make "missing" executable:');
+
+        $this->workspace()->makeExecutable('missing');
+    }
+
     public function testReadingWhatIsNotAFile(): void
     {
         $workspace = $this->workspace();
