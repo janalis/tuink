@@ -209,7 +209,8 @@ final class Keys
             return \sprintf("\x1b[%d;%du", \ord(\strtolower($base)), $modifier);
         }
 
-        $char = 0 !== ($bits & 1) ? \mb_strtoupper($base) : $base;
+        // A letter names a key, whatever its case, as with Ctrl: only Shift makes it a capital
+        $char = 0 !== ($bits & 1) ? \mb_strtoupper($base) : (0 !== $bits ? \mb_strtolower($base) : $base);
         if (0 !== ($bits & 4)) {
             $control = self::control($char);
             if (null === $control) {

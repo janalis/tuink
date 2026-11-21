@@ -48,6 +48,9 @@ final class KeysTest extends TestCase
         yield 'ctrl space' => ['Ctrl+Space', "\x00"];
         yield 'ctrl alt space' => ['Ctrl+Alt+Space', "\x1b\x00"];
         yield 'alt x' => ['Alt+x', "\x1bx"];
+        yield 'alt capital x' => ['Alt+X', "\x1bx"];
+        yield 'alt shift x' => ['Alt+Shift+x', "\x1bX"];
+        yield 'a capital alone' => ['X', 'X'];
         yield 'shift a' => ['Shift+a', 'A'];
         yield 'shift enter' => ['Shift+Enter', "\x1b[27;2;13~"];
         yield 'plus' => ['+', '+'];

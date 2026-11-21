@@ -55,6 +55,14 @@ trait WorkspaceStepsTrait
         $this->getSession()->getWorkspace()->write($path, $content);
     }
 
+    #[Given('/^an executable file "([^"]+)" containing:$/')]
+    public function writeExecutable(string $path, PyStringNode $content): void
+    {
+        $workspace = $this->getSession()->getWorkspace();
+        $workspace->write($path, $content->getRaw()."\n");
+        $workspace->makeExecutable($path);
+    }
+
     #[Given('/^an empty file "([^"]+)"$/')]
     public function writeEmptyFile(string $path): void
     {

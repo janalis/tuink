@@ -67,6 +67,18 @@ final class Workspace
         }
     }
 
+    /**
+     * Makes a file executable by its owner, its group and others (0755), as a script on the PATH is.
+     */
+    public function makeExecutable(string $relative): void
+    {
+        $file = $this->resolve($relative);
+        [$changed, $warning] = Warnings::capture(static fn (): bool => \chmod($file, 0o755));
+        if (!$changed) {
+            throw new \RuntimeException(\sprintf('Cannot make "%s" executable: %s', $relative, $warning ?? 'unknown error'));
+        }
+    }
+
     public function createDirectory(string $relative): void
     {
         $this->makeDirectory($this->resolve($relative));

@@ -71,3 +71,11 @@ Feature: Forms, counts, negations, styles and the terminal
     When I type "Ada"
     And I press "Shift+Backspace"
     Then the "#name" field should contain "Ad"
+
+  Scenario: Whether a text is colored at all
+    Then the text "Tuink demo" should have a color
+    And the text "Status" should have no color
+
+  Scenario: The line a text is on
+    Then the line showing "Tuink" should contain "demo"
+    And the line showing "Tuink" should not contain "Status"
