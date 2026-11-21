@@ -27,6 +27,8 @@ final class FakeDriver implements DriverInterface
     public int $starts = 0;
     private ?ScreenBuffer $screen = null;
     private TerminalObserver $observer;
+    /** Whether the next pump reports output: an application writes its terminal modes once it starts */
+    private bool $started = false;
 
     public function __construct()
     {
@@ -47,6 +49,7 @@ final class FakeDriver implements DriverInterface
         $this->launch = $launch;
         $this->screen = new ScreenBuffer($columns, $rows);
         $this->observer = new TerminalObserver();
+        $this->started = true;
     }
 
     public function stop(): void
@@ -81,7 +84,10 @@ final class FakeDriver implements DriverInterface
 
     public function pump(float $seconds): bool
     {
-        return false;
+        $wrote = $this->started;
+        $this->started = false;
+
+        return $wrote;
     }
 
     public function getScreen(): ScreenBuffer

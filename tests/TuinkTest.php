@@ -90,6 +90,8 @@ final class TuinkTest extends TestCase
 
         $this->assertSame(100, $session->getColumns());
         $this->assertSame(30, $session->getRows());
+        $this->assertSame(1.0, $session->getTimeout());
+        $this->assertSame(3.0, $session->getStartTimeout());
     }
 
     public function testDefaults(): void
@@ -99,6 +101,7 @@ final class TuinkTest extends TestCase
         $this->assertSame(80, $session->getColumns());
         $this->assertSame(24, $session->getRows());
         $this->assertSame(2.0, $session->getTimeout());
+        $this->assertSame(10.0, $session->getStartTimeout());
         // A driver without its own quiet period gets the process one
         $this->assertSame(Tuink::PROCESS_QUIET_PERIOD, $session->getQuietPeriod());
     }
@@ -179,6 +182,7 @@ final class TuinkTest extends TestCase
                 'columns' => $columns,
                 'rows' => $rows,
                 'timeout' => 1.0,
+                'start_timeout' => 3.0,
                 'quiet_period' => $quietPeriod,
                 'snapshots' => null,
                 'in_process' => ['factory' => $factory],

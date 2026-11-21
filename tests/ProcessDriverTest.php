@@ -226,6 +226,39 @@ final class ProcessDriverTest extends TestCase
         $this->assertSame(0, $session->getDriver()->getObserver()->getBellCount());
     }
 
+    public function testAStartWaitsForTheFirstOutputLongerThanAStep(): void
+    {
+        // Slower than a step's timeout, as starting PHP on a loaded machine is
+        $this->session = new Session(new ProcessDriver(['/bin/sh', '-c', 'sleep 0.5; printf ready; sleep 5']), 20, 3, timeout: 0.1);
+        $this->session->start();
+
+        // Keys sent now reach the application, not a terminal it has not taken over yet
+        $this->assertSame('ready', $this->session->getScreenText());
+    }
+
+    public function testAStartThatWritesNothingFails(): void
+    {
+        $driver = new ProcessDriver(['/bin/sh', '-c', 'sleep 5']);
+        $this->session = new Session($driver, 20, 3, startTimeout: 0.3);
+
+        try {
+            $this->session->start();
+            $this->fail('The start was expected to fail.');
+        } catch (DriverException $e) {
+            $this->assertSame('The application has written nothing to its terminal within 0.3 seconds of its start; raise start_timeout if it starts this slowly.', $e->getMessage());
+            $this->assertFalse($driver->isStarted());
+        }
+    }
+
+    public function testAnApplicationThatExitsWithoutWritingStarts(): void
+    {
+        $this->session = new Session(new ProcessDriver(['true']), 20, 3, startTimeout: 5.0);
+        $this->session->start();
+        $this->session->assertExited();
+
+        $this->assertSame(0, $this->session->getDriver()->getExitCode());
+    }
+
     public function testACommandThatDoesNotExist(): void
     {
         $this->session = new Session(new ProcessDriver(['/nonexistent/tuink-app']), timeout: 0.5);

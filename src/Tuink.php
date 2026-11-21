@@ -41,6 +41,7 @@ final class Tuink
         private readonly float $timeout = 2.0,
         private readonly array $quietPeriods = [],
         private readonly ?string $snapshotDir = null,
+        private readonly float $startTimeout = 10.0,
     ) {
         if (!\array_key_exists($defaultDriver, $drivers)) {
             throw new \InvalidArgumentException(\sprintf('The default driver "%s" is not configured; configured drivers: "%s".', $defaultDriver, \implode('", "', \array_keys($drivers))));
@@ -56,6 +57,7 @@ final class Tuink
      *     columns: int,
      *     rows: int,
      *     timeout: float,
+     *     start_timeout: float,
      *     quiet_period: ?float,
      *     snapshots: ?string,
      *     in_process?: array{factory: string},
@@ -103,6 +105,7 @@ final class Tuink
             $config['timeout'],
             $quiet,
             null === $config['snapshots'] ? null : $resolve($config['snapshots']),
+            $config['start_timeout'],
         );
     }
 
@@ -145,9 +148,18 @@ final class Tuink
             $this->columns,
             $this->rows,
             $this->timeout,
-            $this->quietPeriods[$this->driverName] ?? self::PROCESS_QUIET_PERIOD,
+            $this->quietPeriod(),
             $this->snapshotDir,
+            $this->startTimeout,
         );
+    }
+
+    /**
+     * The quiet period of the current driver; one without its own gets the process one.
+     */
+    private function quietPeriod(): float
+    {
+        return $this->quietPeriods[$this->driverName] ?? self::PROCESS_QUIET_PERIOD;
     }
 
     /**

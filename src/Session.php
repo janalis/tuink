@@ -15,6 +15,7 @@ use Janalis\Tuink\Check\BoxChecks;
 use Janalis\Tuink\Check\FileChecks;
 use Janalis\Tuink\Check\TerminalChecks;
 use Janalis\Tuink\Driver\DriverInterface;
+use Janalis\Tuink\Driver\FirstOutput;
 use Janalis\Tuink\Driver\WidgetTreeProviderInterface;
 use Janalis\Tuink\Exception\DriverException;
 use Janalis\Tuink\Exception\ExpectationException;
@@ -46,6 +47,7 @@ final class Session
         private readonly float $timeout = 2.0,
         private readonly float $quietPeriod = 0.05,
         private readonly ?string $snapshotDir = null,
+        private readonly float $startTimeout = 10.0,
     ) {
         $this->launch = new Launch();
     }
@@ -98,6 +100,14 @@ final class Session
     }
 
     /**
+     * Seconds the application may take to write anything once started.
+     */
+    public function getStartTimeout(): float
+    {
+        return $this->startTimeout;
+    }
+
+    /**
      * Seconds without output after which the application counts as settled.
      */
     public function getQuietPeriod(): float
@@ -110,6 +120,8 @@ final class Session
         $this->columns = $columns ?? $this->columns;
         $this->rows = $rows ?? $this->rows;
         $this->driver->start($this->columns, $this->rows, $this->launch->withWorkspace($this->getWorkspace()->path));
+        // Starting PHP on a loaded machine takes seconds, longer than a step may wait
+        FirstOutput::await($this->driver, $this->startTimeout);
         $this->settleFrom(null);
     }
 

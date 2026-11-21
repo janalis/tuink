@@ -59,6 +59,7 @@ return (new Config())
 | `default_driver`    | `in_process` if set      | Driver of untagged scenarios                                              |
 | `columns`, `rows`   | `80`, `24`               | Terminal size at start                                                    |
 | `timeout`           | `2.0`                    | Seconds a step waits for the screen to show what it expects               |
+| `start_timeout`     | `10.0`                   | Seconds the app may take to write anything once started; a start fails past it |
 | `quiet_period`      | `0.02` / `0.05`          | Seconds without output after which the app counts as settled             |
 | `snapshots`         | `features/__snapshots__` | Snapshot directory                                                        |
 | `in_process.factory`| —                        | PHP file returning `callable(VirtualTerminal $terminal, Launch $launch): Tui` |

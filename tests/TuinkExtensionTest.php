@@ -36,6 +36,7 @@ final class TuinkExtensionTest extends TestCase
         $this->assertSame(80, $config['columns']);
         $this->assertSame(24, $config['rows']);
         $this->assertSame(2.0, $config['timeout']);
+        $this->assertSame(10.0, $config['start_timeout']);
         $this->assertNull($config['quiet_period']);
         $this->assertSame('features/__snapshots__', $config['snapshots']);
         $this->assertArrayNotHasKey('process', $config);
@@ -97,6 +98,7 @@ final class TuinkExtensionTest extends TestCase
         yield 'one column' => [['columns' => 1] + $process];
         yield 'one row' => [['rows' => 1] + $process];
         yield 'no timeout' => [['timeout' => 0.0] + $process];
+        yield 'no start timeout' => [['start_timeout' => 0.0] + $process];
         yield 'no quiet period' => [['quiet_period' => 0.0] + $process];
         yield 'no probe timeout' => [['process' => ['command' => 'php app', 'probe_timeout' => 0.0]]];
     }
@@ -119,6 +121,7 @@ final class TuinkExtensionTest extends TestCase
         yield 'no column' => [['columns' => 0] + $process];
         yield 'no row' => [['rows' => 0] + $process];
         yield 'negative timeout' => [['timeout' => -0.1] + $process];
+        yield 'negative start timeout' => [['start_timeout' => -0.1] + $process];
         yield 'negative quiet period' => [['quiet_period' => -0.1] + $process];
         yield 'negative probe timeout' => [['process' => ['command' => 'php app', 'probe_timeout' => -0.1]]];
     }
