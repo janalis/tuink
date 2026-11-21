@@ -251,6 +251,16 @@ final class InProcessDriver implements DriverInterface, WidgetTreeProviderInterf
     }
 
     /**
+     * What the factory returned when it was an InProcessApplicationInterface, for steps that reach into the application.
+     */
+    public function getApplication(): ?InProcessApplicationInterface
+    {
+        $this->tui();
+
+        return $this->application;
+    }
+
+    /**
      * The application's Tui, for steps that inspect widgets and focus.
      */
     public function getTui(): Tui

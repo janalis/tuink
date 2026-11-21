@@ -34,6 +34,11 @@ final class InProcessDriverTest extends TestCase
         $this->driver?->stop();
     }
 
+    public function testAFactoryThatReturnsATuiHasNoApplication(): void
+    {
+        $this->assertNull($this->demo()->getApplication());
+    }
+
     public function testStopStopsTheApplication(): void
     {
         $driver = $this->demo();
@@ -175,6 +180,7 @@ final class InProcessDriverTest extends TestCase
         yield 'resize' => [static fn (InProcessDriver $d) => $d->resize(columns: 10, rows: 5)];
         yield 'pump' => [static fn (InProcessDriver $d) => $d->pump(0.0)];
         yield 'tui' => [static fn (InProcessDriver $d) => $d->getTui()];
+        yield 'application' => [static fn (InProcessDriver $d) => $d->getApplication()];
         yield 'screen' => [static fn (InProcessDriver $d) => $d->getScreen()];
     }
 
@@ -274,8 +280,10 @@ final class InProcessDriverTest extends TestCase
         $this->driver = $driver;
 
         $driver->start(20, rows: 5, launch: new Launch(env: ['TUINK_TEST_APP' => 'set']));
+        $application = $driver->getApplication();
         $driver->stop();
 
+        $this->assertInstanceOf(RecordingApplication::class, $application);
         $this->assertSame(['boot: not running, set', 'shutdown: not running, set'], $calls);
         $this->assertFalse(\getenv('TUINK_TEST_APP'));
         $this->assertFalse($driver->isStarted());

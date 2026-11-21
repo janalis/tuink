@@ -22,7 +22,7 @@ Version numbers follow [Semantic Versioning 2.0.0](https://semver.org/spec/v2.0.
 - A workspace per scenario: a temporary directory the application finds in `TUINK_WORKSPACE` and steps name `%workspace%`, with steps to write files and directories, delete them, and check the files the application writes.
 - Arguments and environment variables per scenario, given to the in-process factory as a `Launch` (and set in `$_SERVER` and `$_ENV` too, so the application's subprocesses get them) and to the process driver's command; a terminal that speaks the kitty keyboard protocol.
 - Frame steps that read, check and click inside the frame whose top border carries a title, and steps for where texts are relative to each other.
-- `InProcessApplicationInterface`: an in-process factory may return one to have the driver call its `boot()` before the `Tui` starts and its `shutdown()` after it stops, for entry points that do more than `Tui::run()`.
+- `InProcessApplicationInterface`: an in-process factory may return one to have the driver call its `boot()` before the `Tui` starts and its `shutdown()` after it stops, for entry points that do more than `Tui::run()`; `InProcessDriver::getApplication()` returns it to custom steps.
 - The Super modifier (`Super+S`, `Cmd+S`), sent in the CSI u form, and `Page_Up`/`Page_Down` as names of the page keys.
 - The process driver puts the application's standard error on the terminal, as a terminal does, so console questions and errors written there show.
 - The process driver ends an application whose test run died without stopping it, like a test runner killed on timeout, instead of leaving it running.
