@@ -111,7 +111,23 @@ final class ProcessDriverTest extends TestCase
     {
         $driver = new ProcessDriver(['/bin/sh', '-c', 'printf "%s %s %s" "$TERM" "$GREETING" "$(stty size)"; sleep 5'], null, ['GREETING' => 'hi']);
         $this->session = new Session($driver, 70, 20, 2.0);
-        $this->session->start();
+        // The terminal type is the driver's, not the one of the terminal the tests run in
+        $term = [\getenv('TERM'), $_SERVER['TERM'] ?? null, $_ENV['TERM'] ?? null];
+        \putenv('TERM=dumb');
+        $_SERVER['TERM'] = 'dumb';
+        $_ENV['TERM'] = 'dumb';
+        try {
+            $this->session->start();
+        } finally {
+            \putenv(false === $term[0] ? 'TERM' : 'TERM='.$term[0]);
+            unset($_SERVER['TERM'], $_ENV['TERM']);
+            if (null !== $term[1]) {
+                $_SERVER['TERM'] = $term[1];
+            }
+            if (null !== $term[2]) {
+                $_ENV['TERM'] = $term[2];
+            }
+        }
 
         $this->session->assertSee('xterm-256color hi 20 70');
         $this->assertTrue($driver->isRunning());
