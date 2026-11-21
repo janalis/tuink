@@ -26,7 +26,9 @@ use Symfony\Component\Tui\Widget\ParentInterface;
  *    widgets whose getValue() returns a string or a number), selected (the
  *    label of the item a list has selected) and widget (its class name);
  *  - with tuink-* attributes for its state and where it was drawn, which
- *    :focus, :visible and the text lookup read.
+ *    :focus, :visible and the text lookup read, and for the value and the
+ *    position of the item a list has selected, which tell apart items with
+ *    the same label.
  *
  * The root container, which Tui::add() adds to, is the document element. The
  * document carries no text: what a widget shows is read from the screen the
@@ -42,6 +44,8 @@ final class WidgetTree
     public const COLUMN = 'tuink-col';
     public const ROWS = 'tuink-rows';
     public const COLUMNS = 'tuink-columns';
+    public const SELECTED_VALUE = 'tuink-selected-value';
+    public const SELECTED_INDEX = 'tuink-selected-index';
 
     /**
      * @param list<AbstractWidget> $widgets The widgets by tuink-index, when they live in this process
@@ -125,6 +129,12 @@ final class WidgetTree
         if (null !== ($selected = self::selected($widget))) {
             $node->setAttribute('selected', $selected);
         }
+        if (null !== ($selectedValue = self::selectedValue($widget))) {
+            $node->setAttribute(self::SELECTED_VALUE, $selectedValue);
+        }
+        if (null !== ($selectedIndex = self::selectedIndex($widget))) {
+            $node->setAttribute(self::SELECTED_INDEX, (string) $selectedIndex);
+        }
         if (\in_array('focus', $widget->getStateFlags(), strict: true)) {
             $node->setAttribute(qualifiedName: self::FOCUS, value: '');
         }
@@ -159,6 +169,22 @@ final class WidgetTree
     }
 
     /**
+     * The value of the item a list widget has selected.
+     */
+    private static function selectedValue(AbstractWidget $widget): ?string
+    {
+        return self::itemValue(self::get($widget, method: 'getSelectedItem'));
+    }
+
+    /**
+     * The position of the item a list widget has selected, when it tells it.
+     */
+    private static function selectedIndex(AbstractWidget $widget): ?int
+    {
+        return self::integer(self::get($widget, method: 'getSelectedIndex'));
+    }
+
+    /**
      * What a getter of the widget returns, or null when it has none callable without arguments: the getValue() of a
      * SettingsListWidget takes the id of a setting.
      */
@@ -172,9 +198,19 @@ final class WidgetTree
         return $getter();
     }
 
+    private static function itemValue(mixed $item): ?string
+    {
+        return \is_array($item) ? self::scalar($item['value'] ?? null) : null;
+    }
+
     private static function label(mixed $item): ?string
     {
         return \is_array($item) && \is_string($item['label'] ?? null) ? $item['label'] : null;
+    }
+
+    private static function integer(mixed $value): ?int
+    {
+        return \is_int($value) ? $value : null;
     }
 
     private static function scalar(mixed $value): ?string

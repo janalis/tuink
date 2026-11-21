@@ -19,6 +19,9 @@ use Symfony\Component\Tui\Widget\AbstractWidget;
  */
 final class Element
 {
+    /** The label of the item a list has selected */
+    public readonly ?string $selected;
+
     /**
      * @param list<string> $classes
      */
@@ -30,14 +33,15 @@ final class Element
         public readonly array $classes,
         public readonly ?string $label,
         public readonly ?string $value,
-        /** The label of the item a list has selected */
-        public readonly ?string $selected,
+        /** The item a list has selected */
+        public readonly ?Selection $selection,
         public readonly bool $focused,
         public readonly ?WidgetRect $rect,
         public readonly string $text,
         /** The widget itself, when the application runs in this process */
         public readonly ?AbstractWidget $widget = null,
     ) {
+        $this->selected = $selection?->label;
     }
 
     /**

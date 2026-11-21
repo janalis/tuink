@@ -102,11 +102,20 @@ final class WidgetQuery
             classes: '' === $class ? [] : \explode(' ', $class),
             label: $node->hasAttribute('label') ? $node->getAttribute('label') : null,
             value: $node->hasAttribute('value') ? $node->getAttribute('value') : null,
-            selected: $node->hasAttribute('selected') ? $node->getAttribute('selected') : null,
+            selection: $node->hasAttribute('selected') ? self::selection($node) : null,
             focused: $node->hasAttribute(WidgetTree::FOCUS),
             rect: $rect,
             text: $text,
             widget: $tree->widgets[$index] ?? null,
+        );
+    }
+
+    private static function selection(\DOMElement $node): Selection
+    {
+        return new Selection(
+            $node->getAttribute('selected'),
+            $node->hasAttribute(WidgetTree::SELECTED_VALUE) ? $node->getAttribute(WidgetTree::SELECTED_VALUE) : null,
+            $node->hasAttribute(WidgetTree::SELECTED_INDEX) ? (int) $node->getAttribute(WidgetTree::SELECTED_INDEX) : null,
         );
     }
 

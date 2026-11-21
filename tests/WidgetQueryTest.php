@@ -271,22 +271,25 @@ final class WidgetQueryTest extends TestCase
     }
 
     /**
-     * @return iterable<string, array{mixed, mixed, ?string, ?string}>
+     * @return iterable<string, array{mixed, mixed, ?string, ?string, ?string}>
      */
     public static function customWidgets(): iterable
     {
-        yield 'string value' => ['Ada', null, 'Ada', null];
-        yield 'int value' => [5, null, '5', null];
-        yield 'float value' => [1.5, null, '1.5', null];
-        yield 'bool value' => [true, null, null, null];
-        yield 'array value' => [['Ada'], null, null, null];
-        yield 'selected label' => [null, ['label' => 'Red'], null, 'Red'];
-        yield 'label that is not a string' => [null, ['label' => 7], null, null];
-        yield 'item that is not an array' => [null, 'Red', null, null];
+        yield 'string value' => ['Ada', null, 'Ada', null, null];
+        yield 'int value' => [5, null, '5', null, null];
+        yield 'float value' => [1.5, null, '1.5', null, null];
+        yield 'bool value' => [true, null, null, null, null];
+        yield 'array value' => [['Ada'], null, null, null, null];
+        yield 'selected label' => [null, ['label' => 'Red'], null, 'Red', null];
+        yield 'selected label and value' => [null, ['label' => 'Red', 'value' => 'red'], null, 'Red', 'red'];
+        yield 'selected value that is a number' => [null, ['label' => 'Red', 'value' => 3], null, 'Red', '3'];
+        yield 'selected value that is not scalar' => [null, ['label' => 'Red', 'value' => ['red']], null, 'Red', null];
+        yield 'label that is not a string' => [null, ['label' => 7], null, null, null];
+        yield 'item that is not an array' => [null, 'Red', null, null, null];
     }
 
     #[DataProvider('customWidgets')]
-    public function testValuesOfCustomWidgets(mixed $value, mixed $selectedItem, ?string $expectedValue, ?string $expectedSelected): void
+    public function testValuesOfCustomWidgets(mixed $value, mixed $selectedItem, ?string $expectedValue, ?string $expectedSelected, ?string $expectedSelectedValue): void
     {
         $this->session = new Session(
             new InProcessDriver(static function (VirtualTerminal $terminal) use ($value, $selectedItem): Tui {
@@ -304,6 +307,35 @@ final class WidgetQueryTest extends TestCase
         $this->assertSame('value', $element->name);
         $this->assertSame($expectedValue, $element->value);
         $this->assertSame($expectedSelected, $element->selected);
+        $this->assertSame($expectedSelectedValue, $element->selection?->value);
+    }
+
+    /**
+     * @return iterable<string, array{mixed, ?int}>
+     */
+    public static function selectedPositions(): iterable
+    {
+        yield 'a position' => [2, 2];
+        yield 'a position that is not a number' => ['2', null];
+        yield 'no position' => [null, null];
+    }
+
+    #[DataProvider('selectedPositions')]
+    public function testThePositionOfTheSelectedItem(mixed $index, ?int $expected): void
+    {
+        $this->session = new Session(
+            new InProcessDriver(static function (VirtualTerminal $terminal) use ($index): Tui {
+                $tui = new Tui(terminal: $terminal);
+                $tui->add(new ValueWidget(null, ['label' => 'Red'], $index)->setId('custom'));
+
+                return $tui;
+            }),
+            timeout: 0.1,
+            quietPeriod: 0.02,
+        );
+        $this->session->start();
+
+        $this->assertSame($expected, $this->session->findOne('#custom')->selection?->index);
     }
 
     public function testAWidgetWhoseGetValueTakesArguments(): void

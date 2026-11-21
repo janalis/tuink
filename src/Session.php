@@ -20,6 +20,7 @@ use Janalis\Tuink\Exception\DriverException;
 use Janalis\Tuink\Exception\ExpectationException;
 use Janalis\Tuink\Exception\UnsupportedDriverException;
 use Janalis\Tuink\Selector\Element;
+use Janalis\Tuink\Selector\Selection;
 use Janalis\Tuink\Selector\WidgetQuery;
 use Janalis\Tuink\Util\Text;
 use Janalis\Tuink\Util\Warnings;
@@ -332,11 +333,19 @@ final class Session
 
     /**
      * Moves the selection of a list to the item with that label, with the arrow keys, and confirms it with Enter.
+     *
+     * Items are told apart by their label, value and position. Without positions (a getSelectedIndex(), which released
+     * versions of SelectListWidget do not have), two items with the same label and value look like one: the walk can
+     * take one for the other, end early and report items it did not reach as missing. So can an application whose
+     * TuiProbe predates values, with items that share a label.
      */
     public function selectOption(string $selector, string $label): void
     {
         $this->focus($selector);
-        $selected = fn () => $this->findOne($selector)->selected ?? throw new \LogicException(\sprintf('The element "%s" has no selected item; it is not a list.', $selector));
+        $selected = fn (): Selection => $this->findOne($selector)->selection ?? throw new \LogicException(\sprintf('The element "%s" has no selected item; it is not a list.', $selector));
+        // Two items can share a label: the selection tells them apart by their value, and their position if the list
+        // tells it. A probe from before values were shared sends the label alone, which is all there is to go by then.
+        $in = static fn (Selection $item, array $items): bool => \array_any($items, $item->is(...));
 
         // Walk down, then up; a direction ends when the selection comes back to an item it passed: it stopped at the end of
         // the list, or wrapped around. Back where the walk down started, it saw every item; otherwise the walk up passes
@@ -345,18 +354,18 @@ final class Session
         $seen = [$current];
         foreach (['Down', 'Up'] as $key) {
             $walked = [$current];
-            while ($current !== $label) {
+            while ($current->label !== $label) {
                 $this->press($key);
                 $current = $selected();
-                if (\in_array($current, $walked, strict: true)) {
-                    if (\count($walked) > 1 && $walked[0] === $current) {
+                if ($in($current, $walked)) {
+                    if (\count($walked) > 1 && $walked[0]->is($current)) {
                         break 2;
                     }
 
                     continue 2;
                 }
                 $walked[] = $current;
-                if (!\in_array($current, $seen, strict: true)) {
+                if (!$in($current, $seen)) {
                     $seen[] = $current;
                 }
             }
@@ -365,7 +374,10 @@ final class Session
             return;
         }
 
-        throw new ExpectationException(\sprintf('The list "%s" has no item "%s"; its items are "%s".', $selector, $label, \implode('", "', $seen)), $this->dump());
+        throw new ExpectationException(
+            \sprintf('The list "%s" has no item "%s"; its items are "%s".', $selector, $label, \implode('", "', \array_map(static fn (Selection $item): string => $item->label, $seen))),
+            $this->dump(),
+        );
     }
 
     /**

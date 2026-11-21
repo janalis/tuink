@@ -17,6 +17,7 @@ use Janalis\Tuink\Exception\ExpectationException;
 use Janalis\Tuink\Keys;
 use Janalis\Tuink\Session;
 use Janalis\Tuink\Tests\Fixtures\StarvedDriver;
+use Janalis\Tuink\Tests\Fixtures\Widget\IndexedSelectListWidget;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use Revolt\EventLoop;
@@ -330,6 +331,51 @@ final class SessionActionsTest extends TestCase
         $session->selectOption('#color', label: 'Purple');
     }
 
+    public function testSelectingPastItemsWithTheSameLabel(): void
+    {
+        $session = $this->grouped();
+
+        $session->selectOption('#setting', label: 'Last');
+
+        $this->assertSame('last', $session->findOne('#setting')->selection?->value);
+    }
+
+    public function testSelectingPastTheSameItemShownTwice(): void
+    {
+        // The same entry under a "Recent" and an "All" group: only its position tells the two apart
+        $this->session = new Session(
+            new InProcessDriver(static function (VirtualTerminal $terminal): Tui {
+                $tui = new Tui(terminal: $terminal);
+                $list = new IndexedSelectListWidget([
+                    ['value' => 'a', 'label' => 'A'],
+                    ['value' => 'a', 'label' => 'A'],
+                    ['value' => 'c', 'label' => 'C'],
+                ]);
+                $tui->add($list->setId('list'));
+                $tui->setFocus($list);
+
+                return $tui;
+            }),
+            timeout: 1.0,
+            quietPeriod: 0.02,
+        );
+        $this->session->start();
+
+        $this->session->selectOption('#list', label: 'C');
+
+        $this->assertSame(2, $this->session->findOne('#list')->selection?->index);
+    }
+
+    public function testAMissingItemNamesItemsWithTheSameLabelEach(): void
+    {
+        $session = $this->grouped();
+
+        $this->expectException(ExpectationException::class);
+        $this->expectExceptionMessageIsOrContains('The list "#setting" has no item "Purple"; its items are "First", "Default", "Middle", "Default", "Last".');
+
+        $session->selectOption('#setting', label: 'Purple');
+    }
+
     public function testFindOneWaitsForAWidgetAddedLater(): void
     {
         $this->session = new Session(
@@ -400,6 +446,34 @@ final class SessionActionsTest extends TestCase
                     return !$wraps && (($up && 0 === $index) || ($down && 2 === $index));
                 });
                 $tui->add($list);
+                $tui->setFocus($list);
+
+                return $tui;
+            }),
+            timeout: 1.0,
+            quietPeriod: 0.02,
+        );
+        $this->session->start();
+
+        return $this->session;
+    }
+
+    /**
+     * A list where two items share the label "Default", as the same setting under two groups would.
+     */
+    private function grouped(): Session
+    {
+        $this->session = new Session(
+            new InProcessDriver(static function (VirtualTerminal $terminal): Tui {
+                $tui = new Tui(terminal: $terminal);
+                $list = new SelectListWidget([
+                    ['value' => 'first', 'label' => 'First'],
+                    ['value' => 'theme', 'label' => 'Default'],
+                    ['value' => 'middle', 'label' => 'Middle'],
+                    ['value' => 'font', 'label' => 'Default'],
+                    ['value' => 'last', 'label' => 'Last'],
+                ], maxVisible: 10);
+                $tui->add($list->setId('setting'));
                 $tui->setFocus($list);
 
                 return $tui;

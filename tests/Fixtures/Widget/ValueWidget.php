@@ -15,13 +15,14 @@ use Symfony\Component\Tui\Render\RenderContext;
 use Symfony\Component\Tui\Widget\AbstractWidget;
 
 /**
- * A widget whose value and selected item are whatever a test gives, as a custom widget's could be.
+ * A widget whose value, selected item and its position are whatever a test gives, as a custom widget's could be.
  */
 final class ValueWidget extends AbstractWidget
 {
     public function __construct(
         private readonly mixed $value,
         private readonly mixed $selectedItem = null,
+        private readonly mixed $selectedIndex = null,
     ) {
     }
 
@@ -33,6 +34,11 @@ final class ValueWidget extends AbstractWidget
     public function getSelectedItem(): mixed
     {
         return $this->selectedItem;
+    }
+
+    public function getSelectedIndex(): mixed
+    {
+        return $this->selectedIndex;
     }
 
     public function render(RenderContext $context): array
