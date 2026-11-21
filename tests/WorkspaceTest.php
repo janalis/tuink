@@ -83,7 +83,7 @@ final class WorkspaceTest extends TestCase
     {
         $workspace = $this->workspace();
         $workspace->write('bin/tool', content: "#!/bin/sh\n");
-        \chmod($workspace->path.'/bin/tool', 0o600);
+        \chmod($workspace->path.'/bin/tool', permissions: 0o600);
         $workspace->makeExecutable('bin/tool');
 
         $this->assertSame(0o755, \fileperms($workspace->path.'/bin/tool') & 0o777);

@@ -73,7 +73,7 @@ final class Workspace
     public function makeExecutable(string $relative): void
     {
         $file = $this->resolve($relative);
-        [$changed, $warning] = Warnings::capture(static fn (): bool => \chmod($file, 0o755));
+        [$changed, $warning] = Warnings::capture(static fn (): bool => \chmod($file, permissions: 0o755));
         if (!$changed) {
             throw new \RuntimeException(\sprintf('Cannot make "%s" executable: %s', $relative, $warning ?? 'unknown error'));
         }
