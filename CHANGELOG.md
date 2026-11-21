@@ -25,6 +25,8 @@ Version numbers follow [Semantic Versioning 2.0.0](https://semver.org/spec/v2.0.
 - `InProcessApplicationInterface`: an in-process factory may return one to have the driver call its `boot()` before the `Tui` starts and its `shutdown()` after it stops, for entry points that do more than `Tui::run()`; `InProcessDriver::getApplication()` returns it to custom steps.
 - The Super modifier (`Super+S`, `Cmd+S`), sent in the CSI u form, and `Page_Up`/`Page_Down` as names of the page keys.
 - Steps for a text having any color or none, for the line on which a text shows, and to write an executable file.
+- `I click on the last "…" on line N`, for a row that shows the same text twice.
+- Ctrl+Shift with a character that is not a letter, like `Ctrl+Shift+-`, keeps its Shift: it is sent as CSI u instead of as the plain control code.
 - A modified letter is the same key in either case: `Alt+S` sends Alt+s, as `Ctrl+S` sends Ctrl+s; `Alt+Shift+S` sends the capital.
 - Ctrl with a character that has no control code, like `Ctrl+,` or `Ctrl+1`, is sent in the CSI u form instead of being refused.
 - The process driver puts the application's standard error on the terminal, as a terminal does, so console questions and errors written there show.

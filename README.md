@@ -124,6 +124,7 @@ return static fn (VirtualTerminal $terminal, Launch $launch): InProcessApplicati
 | `When I click "selector"`                                     | The middle of the one match; see [Mouse](#mouse)                |
 | `When I click on the text "Save"`                             | Its first character, where the screen first shows it            |
 | `When I click at line 5, column 12`                           |                                                                 |
+| `When I click on the last "✖" on line 3`                      | The last occurrence on that row, where the text steps take the first |
 | `When I click on the text "Open" in the dialog "File"`        | Inside the frame titled "File"; see [Frames](#frames)           |
 | `When I double-click …`, `triple-click`, `right-click`, `middle-click` | Any of the three forms above                           |
 | `When I click … with "Ctrl+Shift"`                            | Shift, Alt, Ctrl held                                           |
@@ -301,7 +302,7 @@ The bell counts BEL characters outside escape sequences; the title is the last o
 
 ### Keys
 
-Names are case-insensitive, with optional angle brackets: `Enter`, `Escape`, `Tab`, `Space`, `Backspace`, `Delete`, `Insert`, `Up`, `Down`, `Left`, `Right`, `Home`, `End`, `PageUp`, `PageDown` (or `Page_Up`, `Page_Down`), `F1`–`F12`, `FocusIn` and `FocusOut` (the reports a terminal sends when its window gains or loses the focus), or any single character. A letter is the same key in either case once modified: `Ctrl+S` and `Alt+S` are `Ctrl+s` and `Alt+s`; Shift is what makes a capital (`Alt+Shift+S`). Modifiers join with `+`: `Ctrl+S`, `Shift+Tab`, `Alt+Left`, `Ctrl+Shift+Up`, `Super+S` (also `Cmd+S`; macOS's Command key, which only the kitty keyboard protocol carries, so every Super combination goes as CSI u). Combinations without a legacy encoding, like `Ctrl+Tab`, `Shift+Backspace`, `Ctrl+Shift+A` or `Ctrl+,`, go in the CSI u form of the kitty keyboard protocol, which the Symfony Tui key parser reads. In `I send`, a key is a word of two letters or more (`<Enter>`, `<F5>`) or carries a modifier (`<Alt+x>`); `<b>` stays text.
+Names are case-insensitive, with optional angle brackets: `Enter`, `Escape`, `Tab`, `Space`, `Backspace`, `Delete`, `Insert`, `Up`, `Down`, `Left`, `Right`, `Home`, `End`, `PageUp`, `PageDown` (or `Page_Up`, `Page_Down`), `F1`–`F12`, `FocusIn` and `FocusOut` (the reports a terminal sends when its window gains or loses the focus), or any single character. A letter is the same key in either case once modified: `Ctrl+S` and `Alt+S` are `Ctrl+s` and `Alt+s`; Shift is what makes a capital (`Alt+Shift+S`). Modifiers join with `+`: `Ctrl+S`, `Shift+Tab`, `Alt+Left`, `Ctrl+Shift+Up`, `Super+S` (also `Cmd+S`; macOS's Command key, which only the kitty keyboard protocol carries, so every Super combination goes as CSI u). Combinations without a legacy encoding, like `Ctrl+Tab`, `Shift+Backspace`, `Ctrl+Shift+A`, `Ctrl+Shift+-` or `Ctrl+,`, go in the CSI u form of the kitty keyboard protocol, which the Symfony Tui key parser reads. In `I send`, a key is a word of two letters or more (`<Enter>`, `<F5>`) or carries a modifier (`<Alt+x>`); `<b>` stays text.
 
 ### Snapshots
 

@@ -204,6 +204,10 @@ final class Keys
             // No legacy encoding carries Super: CSI u names the unshifted character and every modifier
             return \sprintf("\x1b[%d;%du", \mb_ord(\mb_strtolower($base)), $modifier);
         }
+        if (0 !== ($bits & 4) && 0 !== ($bits & 1) && !\ctype_alpha($base)) {
+            // No control code carries Shift with a character that is not a letter, as for Ctrl+Shift+-: CSI u names both
+            return \sprintf("\x1b[%d;%du", \mb_ord($base), $modifier);
+        }
         if (0 !== ($bits & 4) && 0 !== ($bits & 3) && 1 === \strlen($base) && \ctype_alpha($base)) {
             // A control code cannot carry Shift, nor Alt cleanly: CSI u names the letter and every modifier
             return \sprintf("\x1b[%d;%du", \ord(\strtolower($base)), $modifier);
