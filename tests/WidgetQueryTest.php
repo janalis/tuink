@@ -17,6 +17,7 @@ use Janalis\Tuink\Exception\ExpectationException;
 use Janalis\Tuink\Selector\Element;
 use Janalis\Tuink\Selector\WidgetTree;
 use Janalis\Tuink\Session;
+use Janalis\Tuink\Tests\Fixtures\Widget\MagicWidget;
 use Janalis\Tuink\Tests\Fixtures\Widget\ValueWidget;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
@@ -357,6 +358,38 @@ final class WidgetQueryTest extends TestCase
         $this->assertSame('settings-list', $element->name);
         $this->assertNull($element->value);
         $this->assertNull($element->selected);
+    }
+
+    public function testGettersThatAreNotPlainPublicMethods(): void
+    {
+        $this->session = new Session(
+            new InProcessDriver(static function (VirtualTerminal $terminal): Tui {
+                $tui = new Tui(terminal: $terminal);
+                $tui->add(new MagicWidget()->setId('magic'));
+
+                return $tui;
+            }),
+            timeout: 0.5,
+            quietPeriod: 0.02,
+        );
+        $this->session->start();
+        $element = $this->session->findOne('#magic');
+
+        // A getter only __call() answers is not known to be one, and a private one is not the widget's to give
+        $this->assertNull($element->value);
+        $this->assertSame('Red', $element->selected);
+        $this->assertNull($element->selection?->index);
+    }
+
+    public function testNoSelectionWithoutTheLabelOfTheSelectedItem(): void
+    {
+        $tui = new Tui(terminal: new VirtualTerminal(20, rows: 3));
+        $tui->add(new ValueWidget(null, ['value' => 'red'], 2)->setId('custom'));
+
+        $xml = WidgetTree::fromTui($tui)->toXml();
+
+        $this->assertStringNotContainsString(WidgetTree::SELECTED_VALUE, $xml);
+        $this->assertStringNotContainsString(WidgetTree::SELECTED_INDEX, $xml);
     }
 
     public function testAWidgetDrawnAwayFromTheLeftEdge(): void

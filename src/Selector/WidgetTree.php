@@ -123,17 +123,19 @@ final class WidgetTree
         if (null !== ($label = $widget->getLabel())) {
             $node->setAttribute('label', $label);
         }
-        if (null !== ($value = self::value($widget))) {
+        if (null !== ($value = self::scalar(self::get($widget, method: 'getValue')))) {
             $node->setAttribute('value', $value);
         }
-        if (null !== ($selected = self::selected($widget))) {
+        // The item a list has selected, whose value and position tell it apart from items with the same label
+        $item = self::item(self::get($widget, method: 'getSelectedItem'));
+        if (null !== ($selected = self::label($item))) {
             $node->setAttribute('selected', $selected);
-        }
-        if (null !== ($selectedValue = self::selectedValue($widget))) {
-            $node->setAttribute(self::SELECTED_VALUE, $selectedValue);
-        }
-        if (null !== ($selectedIndex = self::selectedIndex($widget))) {
-            $node->setAttribute(self::SELECTED_INDEX, (string) $selectedIndex);
+            if (null !== ($selectedValue = self::itemValue($item))) {
+                $node->setAttribute(self::SELECTED_VALUE, $selectedValue);
+            }
+            if (null !== ($selectedIndex = self::integer(self::get($widget, method: 'getSelectedIndex')))) {
+                $node->setAttribute(self::SELECTED_INDEX, (string) $selectedIndex);
+            }
         }
         if (\in_array('focus', $widget->getStateFlags(), strict: true)) {
             $node->setAttribute(qualifiedName: self::FOCUS, value: '');
@@ -155,57 +157,45 @@ final class WidgetTree
         return $node;
     }
 
-    private static function value(AbstractWidget $widget): ?string
-    {
-        return self::scalar(self::get($widget, method: 'getValue'));
-    }
-
     /**
-     * The label of the item a list widget has selected.
-     */
-    private static function selected(AbstractWidget $widget): ?string
-    {
-        return self::label(self::get($widget, method: 'getSelectedItem'));
-    }
-
-    /**
-     * The value of the item a list widget has selected.
-     */
-    private static function selectedValue(AbstractWidget $widget): ?string
-    {
-        return self::itemValue(self::get($widget, method: 'getSelectedItem'));
-    }
-
-    /**
-     * The position of the item a list widget has selected, when it tells it.
-     */
-    private static function selectedIndex(AbstractWidget $widget): ?int
-    {
-        return self::integer(self::get($widget, method: 'getSelectedIndex'));
-    }
-
-    /**
-     * What a getter of the widget returns, or null when it has none callable without arguments: the getValue() of a
-     * SettingsListWidget takes the id of a setting.
+     * What a getter of the widget returns, or null when it has none public that needs no argument: the getValue() of a
+     * SettingsListWidget takes the id of a setting. A method only __call() answers is not known to be a getter.
      */
     private static function get(AbstractWidget $widget, string $method): mixed
     {
-        $getter = [$widget, $method];
-        if (!\is_callable($getter) || 0 !== new \ReflectionMethod($widget, $method)->getNumberOfRequiredParameters()) {
+        if (!\method_exists($widget, $method)) {
+            return null;
+        }
+        $reflection = new \ReflectionMethod($widget, $method);
+        if (!$reflection->isPublic() || 0 !== $reflection->getNumberOfRequiredParameters()) {
             return null;
         }
 
-        return $getter();
+        return $reflection->invoke($widget);
     }
 
-    private static function itemValue(mixed $item): ?string
+    /**
+     * @return array<array-key, mixed>|null
+     */
+    private static function item(mixed $item): ?array
     {
-        return \is_array($item) ? self::scalar($item['value'] ?? null) : null;
+        return \is_array($item) ? $item : null;
     }
 
-    private static function label(mixed $item): ?string
+    /**
+     * @param array<array-key, mixed>|null $item
+     */
+    private static function itemValue(?array $item): ?string
     {
-        return \is_array($item) && \is_string($item['label'] ?? null) ? $item['label'] : null;
+        return self::scalar($item['value'] ?? null);
+    }
+
+    /**
+     * @param array<array-key, mixed>|null $item
+     */
+    private static function label(?array $item): ?string
+    {
+        return \is_string($item['label'] ?? null) ? $item['label'] : null;
     }
 
     private static function integer(mixed $value): ?int
