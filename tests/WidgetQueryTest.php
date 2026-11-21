@@ -26,6 +26,8 @@ use Symfony\Component\Tui\Terminal\VirtualTerminal;
 use Symfony\Component\Tui\Tui;
 use Symfony\Component\Tui\Widget\ContainerWidget;
 use Symfony\Component\Tui\Widget\SelectListWidget;
+use Symfony\Component\Tui\Widget\SettingItem;
+use Symfony\Component\Tui\Widget\SettingsListWidget;
 use Symfony\Component\Tui\Widget\TextWidget;
 
 final class WidgetQueryTest extends TestCase
@@ -302,6 +304,27 @@ final class WidgetQueryTest extends TestCase
         $this->assertSame('value', $element->name);
         $this->assertSame($expectedValue, $element->value);
         $this->assertSame($expectedSelected, $element->selected);
+    }
+
+    public function testAWidgetWhoseGetValueTakesArguments(): void
+    {
+        // SettingsListWidget::getValue() takes the id of a setting: the tree does without its value
+        $this->session = new Session(
+            new InProcessDriver(static function (VirtualTerminal $terminal): Tui {
+                $tui = new Tui(terminal: $terminal);
+                $tui->add(new SettingsListWidget([new SettingItem('theme', label: 'Theme', currentValue: 'dark', values: ['dark', 'light'])])->setId('settings'));
+
+                return $tui;
+            }),
+            timeout: 0.5,
+            quietPeriod: 0.02,
+        );
+        $this->session->start();
+        $element = $this->session->findOne('#settings');
+
+        $this->assertSame('settings-list', $element->name);
+        $this->assertNull($element->value);
+        $this->assertNull($element->selected);
     }
 
     public function testAWidgetDrawnAwayFromTheLeftEdge(): void

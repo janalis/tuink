@@ -147,11 +147,7 @@ final class WidgetTree
 
     private static function value(AbstractWidget $widget): ?string
     {
-        if (!\method_exists($widget, 'getValue')) {
-            return null;
-        }
-
-        return self::scalar($widget->getValue());
+        return self::scalar(self::get($widget, method: 'getValue'));
     }
 
     /**
@@ -159,7 +155,21 @@ final class WidgetTree
      */
     private static function selected(AbstractWidget $widget): ?string
     {
-        return \method_exists($widget, 'getSelectedItem') ? self::label($widget->getSelectedItem()) : null;
+        return self::label(self::get($widget, method: 'getSelectedItem'));
+    }
+
+    /**
+     * What a getter of the widget returns, or null when it has none callable without arguments: the getValue() of a
+     * SettingsListWidget takes the id of a setting.
+     */
+    private static function get(AbstractWidget $widget, string $method): mixed
+    {
+        $getter = [$widget, $method];
+        if (!\is_callable($getter) || 0 !== new \ReflectionMethod($widget, $method)->getNumberOfRequiredParameters()) {
+            return null;
+        }
+
+        return $getter();
     }
 
     private static function label(mixed $item): ?string
