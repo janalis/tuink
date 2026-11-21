@@ -70,7 +70,9 @@ final class TuinkExtension implements Extension
             ->defaultValue(2.0)
             ->end()
             ->floatNode('start_timeout')
-            ->info('Seconds the application may take to write anything once started; starting PHP on a loaded machine takes seconds')
+            ->info(
+                'Seconds the application may take to write anything once started, as starting PHP on a loaded machine takes seconds; 0 does not wait, for applications that write nothing before their first input',
+            )
             ->min(0)
             ->defaultValue(10.0)
             ->end()

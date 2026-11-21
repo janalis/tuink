@@ -250,6 +250,35 @@ final class ProcessDriverTest extends TestCase
         }
     }
 
+    public function testAStartEndsOnceTheFirstFrameWentQuiet(): void
+    {
+        $this->session = new Session(new ProcessDriver(['/bin/sh', '-c', 'printf ready; sleep 5']), 20, 3, timeout: 10.0);
+        $start = \microtime(true);
+        $this->session->start();
+
+        // The first output was the whole frame: the start does not wait for the step timeout
+        $this->assertLessThan(5.0, \microtime(true) - $start);
+        $this->assertSame('ready', $this->session->getScreenText());
+    }
+
+    public function testAStartWaitsForTheFrameAfterTheTerminalModes(): void
+    {
+        $this->session = new Session(new ProcessDriver(['/bin/sh', '-c', 'printf "\\033[?2004h"; sleep 0.3; printf ready; sleep 5']), 20, 3, timeout: 2.0);
+        $this->session->start();
+
+        $this->assertSame('ready', $this->session->getScreenText());
+    }
+
+    public function testAStartTimeoutOfZeroDoesNotWaitForOutput(): void
+    {
+        $driver = new ProcessDriver(['/bin/sh', '-c', 'sleep 0.5; printf ready; sleep 5']);
+        $this->session = new Session($driver, 20, 3, timeout: 0.1, startTimeout: 0.0);
+        $this->session->start();
+
+        $this->assertTrue($driver->isRunning());
+        $this->assertSame('', $this->session->getScreenText());
+    }
+
     public function testAnApplicationThatExitsWithoutWritingStarts(): void
     {
         $this->session = new Session(new ProcessDriver(['true']), 20, 3, startTimeout: 5.0);

@@ -122,7 +122,8 @@ final class Session
         $this->driver->start($this->columns, $this->rows, $this->launch->withWorkspace($this->getWorkspace()->path));
         // Starting PHP on a loaded machine takes seconds, longer than a step may wait
         FirstOutput::await($this->driver, $this->startTimeout);
-        $this->settleFrom(null);
+        // The first output may have been the whole frame: quiet counts from now then
+        $this->settleFrom('' === $this->getScreenText() ? null : \microtime(true));
     }
 
     public function stop(): void

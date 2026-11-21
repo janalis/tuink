@@ -23,11 +23,15 @@ final class FirstOutput
 {
     /**
      * Returns once the application wrote or exited; an application still silent after $timeout seconds is stopped.
+     * A timeout of 0 does not wait, for applications that write nothing before their first input.
      *
      * @throws DriverException When the application wrote nothing within $timeout seconds
      */
     public static function await(DriverInterface $driver, float $timeout): void
     {
+        if ($timeout <= 0.0) {
+            return;
+        }
         $deadline = \microtime(true) + $timeout;
 
         while (!$driver->pump(0.01) && $driver->isRunning()) {
