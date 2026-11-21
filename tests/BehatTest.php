@@ -26,7 +26,7 @@ final class BehatTest extends TestCase
     {
         $root = \dirname(__DIR__);
         $process = new Process(
-            [self::php(), $root.'/vendor/bin/behat', '--no-colors', '--config', $root.'/tests/Fixtures/failing/behat.php'],
+            self::command(['--config', $root.'/tests/Fixtures/failing/behat.php']),
             $root.'/tests/Fixtures/failing',
         );
         $process->setTimeout(60);
@@ -51,7 +51,7 @@ final class BehatTest extends TestCase
     public function testTheFeaturesUseEveryStep(): void
     {
         $root = \dirname(__DIR__);
-        $process = new Process([self::php(), $root.'/vendor/bin/behat', '--no-colors', '--dry-run', '--print-unused-definitions', '--format=progress'], $root);
+        $process = new Process(self::command(['--dry-run', '--print-unused-definitions', '--format=progress']), $root);
         $process->setTimeout(60);
         $process->run();
         $output = $process->getOutput().$process->getErrorOutput();
@@ -74,7 +74,7 @@ final class BehatTest extends TestCase
     {
         $root = \dirname(__DIR__);
         $process = new Process(
-            [self::php(), $root.'/vendor/bin/behat', '--no-colors', '--config', $root.'/tests/Fixtures/'.$fixture.'/behat.php'],
+            self::command(['--config', $root.'/tests/Fixtures/'.$fixture.'/behat.php']),
             $root.'/tests/Fixtures/'.$fixture,
         );
         $process->setTimeout(60);
@@ -82,6 +82,18 @@ final class BehatTest extends TestCase
         $code = $process->getExitCode();
 
         return $process->getOutput().$process->getErrorOutput();
+    }
+
+    /**
+     * Behat's command line; English output, whatever the locale, since the tests read it.
+     *
+     * @param list<string> $arguments
+     *
+     * @return list<string>
+     */
+    private static function command(array $arguments): array
+    {
+        return [self::php(), \dirname(__DIR__).'/vendor/bin/behat', '--no-colors', '--lang=en', ...$arguments];
     }
 
     private static function php(): string
