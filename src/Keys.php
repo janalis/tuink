@@ -15,7 +15,8 @@ namespace Janalis\Tuink;
  * Turns key names into the bytes a terminal sends for them.
  *
  * Names are case-insensitive and joined with "+": "Enter", "Ctrl+S",
- * "Shift+Tab", "Alt+Left", "Ctrl+Shift+Up", "F5", or a single character.
+ * "Shift+Tab", "Alt+Left", "Ctrl+Shift+Up", "Super+S", "F5", or a single
+ * character. "PageUp" may also be written "Page_Up".
  * Angle brackets are optional, so "<Ctrl+S>" works too.
  */
 final class Keys
@@ -33,6 +34,8 @@ final class Keys
         'del' => "\x1b[3~",
         'pageup' => "\x1b[5~",
         'pagedown' => "\x1b[6~",
+        'page_up' => "\x1b[5~",
+        'page_down' => "\x1b[6~",
         'f5' => "\x1b[15~",
         'f6' => "\x1b[17~",
         'f7' => "\x1b[18~",
@@ -67,6 +70,8 @@ final class Keys
         'del' => 3,
         'pageup' => 5,
         'pagedown' => 6,
+        'page_up' => 5,
+        'page_down' => 6,
         'f5' => 15,
         'f6' => 17,
         'f7' => 18,
@@ -110,7 +115,7 @@ final class Keys
     }
 
     /**
-     * Splits "<Ctrl+Shift+Up>" into its key and the xterm modifier parameter: 1, plus 1 for Shift, 2 for Alt, 4 for Ctrl.
+     * Splits "<Ctrl+Shift+Up>" into its key and the xterm modifier parameter: 1, plus 1 for Shift, 2 for Alt, 4 for Ctrl, 8 for Super.
      *
      * @return array{string, int}
      */
@@ -138,6 +143,8 @@ final class Keys
                 'shift' => 1,
                 'alt', 'meta', 'option' => 2,
                 'ctrl', 'control' => 4,
+                // Cmd on macOS, the Windows key elsewhere: only the kitty keyboard protocol carries it
+                'super', 'cmd', 'command' => 8,
                 default => throw new \InvalidArgumentException(\sprintf('Unknown modifier "%s" in key "%s".', $part, $name)),
             };
         }
@@ -166,17 +173,21 @@ final class Keys
             return "\x1b[Z";
         }
         if ('enter' === $lower || 'return' === $lower) {
-            // Modified, the xterm modifyOtherKeys form, which the Tui key parser understands
-            return 1 === $modifier ? "\r" : "\x1b[27;{$modifier};13~";
+            // Modified, the xterm modifyOtherKeys form, which the Tui key parser understands; with Super, only CSI u is read
+            return match (true) {
+                1 === $modifier => "\r",
+                0 !== ($bits & 8) => "\x1b[13;{$modifier}u",
+                default => "\x1b[27;{$modifier};13~",
+            };
         }
-        if ('space' === $lower && 4 === ($bits & 5)) {
+        if ('space' === $lower && 4 === ($bits & 13)) {
             return self::alt($bits)."\x00";
         }
         if (!\array_key_exists($lower, self::NAMED)) {
             return null;
         }
-        if (0 !== ($bits & 5)) {
-            // Legacy encodings have no room for Shift or Ctrl here: send the CSI u form (kitty keyboard protocol), which the Tui key parser reads
+        if (0 !== ($bits & 13)) {
+            // Legacy encodings have no room for Shift, Ctrl or Super here: send the CSI u form (kitty keyboard protocol), which the Tui key parser reads
             return \sprintf("\x1b[%d;%du", \ord(self::NAMED[$lower]), $modifier);
         }
 
@@ -189,6 +200,10 @@ final class Keys
             throw new \InvalidArgumentException(\sprintf('Unknown key "%s".', $name));
         }
         $bits = $modifier - 1;
+        if (0 !== ($bits & 8)) {
+            // No legacy encoding carries Super: CSI u names the unshifted character and every modifier
+            return \sprintf("\x1b[%d;%du", \mb_ord(\mb_strtolower($base)), $modifier);
+        }
         if (0 !== ($bits & 4) && 0 !== ($bits & 3) && 1 === \strlen($base) && \ctype_alpha($base)) {
             // A control code cannot carry Shift, nor Alt cleanly: CSI u names the letter and every modifier
             return \sprintf("\x1b[%d;%du", \ord(\strtolower($base)), $modifier);

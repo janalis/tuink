@@ -89,6 +89,10 @@ final class KeysTest extends TestCase
         yield ['Alt+Left', Key::alt(Key::LEFT)];
         yield ['F5', Key::F5];
         yield ['PageDown', Key::PAGE_DOWN];
+        yield ['Page_Up', Key::PAGE_UP];
+        yield ['Ctrl+Page_Down', Key::ctrl(Key::PAGE_DOWN)];
+        yield ['Super+Left', Key::super(Key::LEFT)];
+        yield ['Super+F5', Key::super(Key::F5)];
         yield ['Shift+Enter', Key::shift(Key::ENTER)];
     }
 
@@ -109,9 +113,9 @@ final class KeysTest extends TestCase
     public function testUnknownModifier(): void
     {
         $this->expectException(\InvalidArgumentException::class);
-        $this->expectExceptionMessageIsOrContains('Unknown modifier "Super"');
+        $this->expectExceptionMessageIsOrContains('Unknown modifier "Hyper"');
 
-        Keys::key('Super+S');
+        Keys::key('Hyper+S');
     }
 
     public function testSequenceMixesTextAndKeys(): void
@@ -141,6 +145,16 @@ final class KeysTest extends TestCase
         yield ['Ctrl+Shift+Space', "\x1b[32;6u", 'ctrl+shift+space'];
         yield ['Ctrl+Shift+A', "\x1b[97;6u", 'ctrl+shift+a'];
         yield ['Ctrl+Alt+s', "\x1b[115;7u", 'ctrl+alt+s'];
+        yield ['Super+S', "\x1b[115;9u", 'super+s'];
+        yield ['Cmd+s', "\x1b[115;9u", 'super+s'];
+        yield ['Command+Shift+Z', "\x1b[122;10u", 'shift+super+z'];
+        yield ['Ctrl+Super+1', "\x1b[49;13u", 'ctrl+super+1'];
+        yield ['Super+Enter', "\x1b[13;9u", 'super+enter'];
+        yield ['Ctrl+Super+Enter', "\x1b[13;13u", 'ctrl+super+enter'];
+        yield ['Super+Tab', "\x1b[9;9u", 'super+tab'];
+        yield ['Super+Space', "\x1b[32;9u", 'super+space'];
+        yield ['Ctrl+Super+Space', "\x1b[32;13u", 'ctrl+super+space'];
+        yield ['Super+Escape', "\x1b[27;9u", 'super+escape'];
     }
 
     #[DataProvider('csiU')]

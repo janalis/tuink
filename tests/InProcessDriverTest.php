@@ -11,10 +11,12 @@ declare(strict_types=1);
 
 namespace Janalis\Tuink\Tests;
 
+use Janalis\Tuink\Driver\InProcessApplicationInterface;
 use Janalis\Tuink\Driver\InProcessDriver;
 use Janalis\Tuink\Example\DemoApp;
 use Janalis\Tuink\Exception\DriverException;
 use Janalis\Tuink\Launch;
+use Janalis\Tuink\Tests\Fixtures\RecordingApplication;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use Revolt\EventLoop;
@@ -118,7 +120,11 @@ final class InProcessDriverTest extends TestCase
     public static function failingFactories(): iterable
     {
         yield 'throws' => [static fn () => throw new \RuntimeException('boom'), \RuntimeException::class, 'boom'];
-        yield 'returns something else' => [static fn () => null, DriverException::class, 'The in-process factory must return a "Symfony\Component\Tui\Tui", "null" returned.'];
+        yield 'returns something else' => [
+            static fn () => null,
+            DriverException::class,
+            'The in-process factory must return a "Symfony\Component\Tui\Tui" or an "Janalis\Tuink\Driver\InProcessApplicationInterface", "null" returned.',
+        ];
         yield 'uses another terminal' => [
             static fn () => new Tui(terminal: new VirtualTerminal()),
             DriverException::class,
@@ -256,6 +262,102 @@ final class InProcessDriverTest extends TestCase
 
         // The pump's own timer is gone: nothing is left to fire later and resume a suspension nobody waits on
         $this->assertSame([], \array_values(\array_diff(EventLoop::getIdentifiers(), $before)));
+    }
+
+    public function testAnApplicationBootsBeforeTheTuiStartsAndShutsDownAfterItStops(): void
+    {
+        /** @var list<string> $calls */
+        $calls = [];
+        $driver = new InProcessDriver(static function (VirtualTerminal $terminal) use (&$calls): InProcessApplicationInterface {
+            return new RecordingApplication(new Tui(terminal: $terminal), $calls);
+        });
+        $this->driver = $driver;
+
+        $driver->start(20, rows: 5, launch: new Launch(env: ['TUINK_TEST_APP' => 'set']));
+        $driver->stop();
+
+        $this->assertSame(['boot: not running, set', 'shutdown: not running, set'], $calls);
+        $this->assertFalse(\getenv('TUINK_TEST_APP'));
+        $this->assertFalse($driver->isStarted());
+    }
+
+    public function testTimersTheShutdownLeavesAreCancelled(): void
+    {
+        $before = EventLoop::getIdentifiers();
+        $calls = [];
+        $driver = new InProcessDriver(static function (VirtualTerminal $terminal) use (&$calls): InProcessApplicationInterface {
+            return new RecordingApplication(
+                new Tui(terminal: $terminal),
+                $calls,
+                onShutdown: static function (): void {
+                    EventLoop::delay(10, static fn () => null);
+                },
+            );
+        });
+        $this->driver = $driver;
+
+        $driver->start(20, rows: 5);
+        $driver->stop();
+
+        $this->assertSame([], \array_values(\array_diff(EventLoop::getIdentifiers(), $before)));
+    }
+
+    public function testAShutdownThatThrowsStillReleasesTheRun(): void
+    {
+        $calls = [];
+        $driver = new InProcessDriver(static function (VirtualTerminal $terminal) use (&$calls): InProcessApplicationInterface {
+            return new RecordingApplication(
+                new Tui(terminal: $terminal),
+                $calls,
+                onShutdown: static fn () => throw new \RuntimeException('teardown'),
+            );
+        });
+        $this->driver = $driver;
+        $driver->start(20, rows: 5, launch: new Launch(env: ['TUINK_TEST_APP' => 'set']));
+
+        try {
+            $driver->stop();
+            $this->fail('The stop was expected to fail.');
+        } catch (\RuntimeException $e) {
+            $this->assertSame('teardown', $e->getMessage());
+        }
+
+        $this->assertFalse($driver->isStarted());
+        $this->assertFalse(\getenv('TUINK_TEST_APP'));
+        // Released once: a second stop has nothing left to shut down
+        $driver->stop();
+        $this->assertSame(['boot: not running, set', 'shutdown: not running, set'], $calls);
+    }
+
+    public function testABootThatThrowsIsNotShutDownAndReleasesTheRun(): void
+    {
+        $before = EventLoop::getIdentifiers();
+        $calls = [];
+        $driver = new InProcessDriver(static function (VirtualTerminal $terminal) use (&$calls): InProcessApplicationInterface {
+            return new RecordingApplication(
+                new Tui(terminal: $terminal),
+                $calls,
+                onBoot: static function (): void {
+                    EventLoop::delay(10, static fn () => null);
+
+                    throw new \RuntimeException('no boot');
+                },
+            );
+        });
+        $this->driver = $driver;
+
+        try {
+            $driver->start(20, rows: 5, launch: new Launch(env: ['TUINK_TEST_APP' => 'set']));
+            $this->fail('The start was expected to fail.');
+        } catch (\RuntimeException $e) {
+            $this->assertSame('no boot', $e->getMessage());
+        }
+
+        $this->assertFalse($driver->isStarted());
+        $this->assertFalse(\getenv('TUINK_TEST_APP'));
+        $this->assertSame([], \array_values(\array_diff(EventLoop::getIdentifiers(), $before)));
+        $driver->stop();
+        $this->assertSame(['boot: not running, set'], $calls);
     }
 
     private function demo(): InProcessDriver

@@ -23,7 +23,8 @@ use Symfony\Component\Tui\Tui;
  * Runs the application in the test process, on a VirtualTerminal.
  *
  * The factory receives the terminal and the scenario's Launch, and returns the
- * application's Tui without starting it. The Launch's variables are set for the
+ * application's Tui without starting it, or an InProcessApplicationInterface that also
+ * boots and shuts the application down around the Tui's run. The Launch's variables are set for the
  * run in putenv(), $_SERVER and $_ENV (Symfony Process gives its children the
  * variables of the last two), and restored after it. The driver starts it and turns the Revolt event loop in short
  * slices, so timers, intervals and async work progress as they would under
@@ -35,6 +36,7 @@ final class InProcessDriver implements DriverInterface, WidgetTreeProviderInterf
     private readonly \Closure $factory;
     private ?VirtualTerminal $terminal = null;
     private ?Tui $tui = null;
+    private ?InProcessApplicationInterface $application = null;
     private ?ScreenBuffer $screen = null;
     private TerminalObserver $observer;
     /** @var array<string, true> Event loop callbacks that existed before the application */
@@ -43,7 +45,7 @@ final class InProcessDriver implements DriverInterface, WidgetTreeProviderInterf
     private array $replacedEnv = [];
 
     /**
-     * @param callable(VirtualTerminal, Launch): mixed $factory Returns the Tui; anything else is reported at start
+     * @param callable(VirtualTerminal, Launch): mixed $factory Returns the Tui or an InProcessApplicationInterface; anything else is reported at start
      */
     public function __construct(callable $factory)
     {
@@ -76,19 +78,23 @@ final class InProcessDriver implements DriverInterface, WidgetTreeProviderInterf
     private static function callableFrom(mixed $factory, string $path): callable
     {
         if (!\is_callable($factory)) {
-            throw new DriverException(\sprintf('The in-process factory file "%s" must return a callable(VirtualTerminal, Launch): Tui, "%s" returned.', $path, \get_debug_type($factory)));
+            throw new DriverException(\sprintf(
+                'The in-process factory file "%s" must return a callable(VirtualTerminal, Launch): Tui|InProcessApplicationInterface, "%s" returned.',
+                $path,
+                \get_debug_type($factory),
+            ));
         }
 
         return $factory;
     }
 
-    private static function tuiFrom(mixed $tui): Tui
+    private static function built(mixed $built): Tui|InProcessApplicationInterface
     {
-        if (!$tui instanceof Tui) {
-            throw new DriverException(\sprintf('The in-process factory must return a "%s", "%s" returned.', Tui::class, \get_debug_type($tui)));
+        if ($built instanceof Tui || $built instanceof InProcessApplicationInterface) {
+            return $built;
         }
 
-        return $tui;
+        throw new DriverException(\sprintf('The in-process factory must return a "%s" or an "%s", "%s" returned.', Tui::class, InProcessApplicationInterface::class, \get_debug_type($built)));
     }
 
     public function getName(): string
@@ -113,7 +119,8 @@ final class InProcessDriver implements DriverInterface, WidgetTreeProviderInterf
         $terminal = new VirtualTerminal($columns, $rows);
         $terminal->setKittyProtocolActive($launch->kitty);
         try {
-            $tui = self::tuiFrom(($this->factory)($terminal, $launch));
+            $built = self::built(($this->factory)($terminal, $launch));
+            $tui = $built instanceof InProcessApplicationInterface ? $built->getTui() : $built;
             if ($tui->getTerminal() !== $terminal) {
                 throw new DriverException('The in-process factory must build the Tui on the VirtualTerminal it receives.');
             }
@@ -125,17 +132,40 @@ final class InProcessDriver implements DriverInterface, WidgetTreeProviderInterf
 
         $this->terminal = $terminal;
         $this->tui = $tui;
+        $this->application = $built instanceof InProcessApplicationInterface ? $built : null;
         $this->screen = new ScreenBuffer($columns, $rows);
         $this->observer = new TerminalObserver();
+        // As an entry point does: set up, then run. A boot that throws cleans up after itself, as it would before run()
+        try {
+            $this->application?->boot();
+        } catch (\Throwable $e) {
+            $this->application = null;
+            $this->release();
+
+            throw $e;
+        }
         $tui->start();
     }
 
     public function stop(): void
     {
-        if (null !== $this->tui && $this->tui->isRunning()) {
-            $this->tui->stop();
+        try {
+            if (null !== $this->tui && $this->tui->isRunning()) {
+                $this->tui->stop();
+            }
+            // What the entry point does once run() returned: the application saves and stops what it started
+            $this->application?->shutdown();
+        } finally {
+            $this->application = null;
+            $this->release();
         }
+    }
 
+    /**
+     * Cancels what the application left on the loop, and forgets it.
+     */
+    private function release(): void
+    {
         // The loop is shared by the whole run: timers the application left behind must not fire in the next scenario
         if (null !== $this->tui) {
             foreach (EventLoop::getIdentifiers() as $id) {

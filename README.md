@@ -89,6 +89,19 @@ The `Launch` carries what the scenario starts the application with: its argument
 
 Your entry point does the same with the real terminal and calls `run()`. The driver starts the `Tui` and turns the Revolt event loop in short slices, so timers and async work run as they do under `run()`.
 
+When your entry point does more around `run()`, such as starting servers, arming timers or saving a session after it returns, return an `InProcessApplicationInterface` instead of the `Tui`. The driver calls `boot()` before it starts the `Tui`, and `shutdown()` once the `Tui` stopped, at the end of the scenario or on `I restart the app`. A `boot()` that throws must undo its own work: the driver does not call `shutdown()` after it.
+
+```php
+use Janalis\Tuink\Driver\InProcessApplicationInterface;
+
+return static fn (VirtualTerminal $terminal, Launch $launch): InProcessApplicationInterface => new class(new Application($terminal)) implements InProcessApplicationInterface {
+    public function __construct(private readonly Application $app) {}
+    public function getTui(): Tui { return $this->app->tui; }
+    public function boot(): void { $this->app->boot(); }
+    public function shutdown(): void { $this->app->shutdown(); }
+};
+```
+
 ## Steps
 
 | Step                                                          | Notes                                                           |
@@ -285,7 +298,7 @@ The bell counts BEL characters outside escape sequences; the title is the last o
 
 ### Keys
 
-Names are case-insensitive, with optional angle brackets: `Enter`, `Escape`, `Tab`, `Space`, `Backspace`, `Delete`, `Insert`, `Up`, `Down`, `Left`, `Right`, `Home`, `End`, `PageUp`, `PageDown`, `F1`–`F12`, `FocusIn` and `FocusOut` (the reports a terminal sends when its window gains or loses the focus), or any single character. Modifiers join with `+`: `Ctrl+S`, `Shift+Tab`, `Alt+Left`, `Ctrl+Shift+Up`. Combinations without a legacy encoding, like `Ctrl+Tab`, `Shift+Backspace` or `Ctrl+Shift+A`, go in the CSI u form of the kitty keyboard protocol, which the Symfony Tui key parser reads. In `I send`, a key is a word of two letters or more (`<Enter>`, `<F5>`) or carries a modifier (`<Alt+x>`); `<b>` stays text.
+Names are case-insensitive, with optional angle brackets: `Enter`, `Escape`, `Tab`, `Space`, `Backspace`, `Delete`, `Insert`, `Up`, `Down`, `Left`, `Right`, `Home`, `End`, `PageUp`, `PageDown` (or `Page_Up`, `Page_Down`), `F1`–`F12`, `FocusIn` and `FocusOut` (the reports a terminal sends when its window gains or loses the focus), or any single character. Modifiers join with `+`: `Ctrl+S`, `Shift+Tab`, `Alt+Left`, `Ctrl+Shift+Up`, `Super+S` (also `Cmd+S`; macOS's Command key, which only the kitty keyboard protocol carries, so every Super combination goes as CSI u). Combinations without a legacy encoding, like `Ctrl+Tab`, `Shift+Backspace` or `Ctrl+Shift+A`, go in the CSI u form of the kitty keyboard protocol, which the Symfony Tui key parser reads. In `I send`, a key is a word of two letters or more (`<Enter>`, `<F5>`) or carries a modifier (`<Alt+x>`); `<b>` stays text.
 
 ### Snapshots
 
