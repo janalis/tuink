@@ -17,7 +17,8 @@ Feature: Checking the screen
       """
 
   Scenario: Work that finishes later
-    Given I start the app
+    Given the environment variable "DEMO_READY_AFTER" is "1.5"
+    And I start the app
     Then I should see "Status: loading"
     And I should eventually see "Status: ready"
     And the status line should say "ready"

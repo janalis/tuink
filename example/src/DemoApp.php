@@ -149,8 +149,11 @@ final class DemoApp
             }
         });
 
-        // Work that finishes later, as an HTTP call or a file scan would; outside input and ticks, a change must ask for its frame
-        EventLoop::delay(0.3, static function () use ($tui, $status): void {
+        // Work that finishes later, as an HTTP call or a file scan would; outside input and ticks, a change must ask for its frame.
+        // It takes DEMO_READY_AFTER seconds, 0.3 by default: tests that look for "loading" give it longer, which a start
+        // on a loaded machine cannot outlast.
+        $readyAfter = \getenv('DEMO_READY_AFTER');
+        EventLoop::delay(\is_numeric($readyAfter) ? (float) $readyAfter : 0.3, static function () use ($tui, $status): void {
             $status->setText('Status: ready');
             $tui->requestRender();
         });

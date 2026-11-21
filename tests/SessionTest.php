@@ -16,6 +16,7 @@ use Janalis\Tuink\Example\DemoApp;
 use Janalis\Tuink\Exception\DriverException;
 use Janalis\Tuink\Exception\ExpectationException;
 use Janalis\Tuink\Exception\UnsupportedDriverException;
+use Janalis\Tuink\Launch;
 use Janalis\Tuink\Session;
 use PHPUnit\Framework\TestCase;
 use Revolt\EventLoop;
@@ -117,7 +118,7 @@ final class SessionTest extends TestCase
 
     public function testAssertSeeWaitsForLateFrames(): void
     {
-        $session = $this->demo();
+        $session = $this->demo(env: ['DEMO_READY_AFTER' => '1.5']);
         $this->assertStringContainsString('Status: loading', $session->getScreenText());
 
         $session->assertSee('Status: ready');
@@ -358,7 +359,10 @@ final class SessionTest extends TestCase
         return $this->demo(timeout: 0.1);
     }
 
-    private function demo(float $timeout = 2.0): Session
+    /**
+     * @param array<string, string> $env
+     */
+    private function demo(float $timeout = 2.0, array $env = []): Session
     {
         $this->session = new Session(
             new InProcessDriver(static fn (VirtualTerminal $terminal): Tui => new DemoApp($terminal)->tui),
@@ -366,6 +370,7 @@ final class SessionTest extends TestCase
             quietPeriod: 0.02,
             snapshotDir: $this->snapshotDir,
         );
+        $this->session->setLaunch(new Launch(env: $env));
         $this->session->start();
 
         return $this->session;

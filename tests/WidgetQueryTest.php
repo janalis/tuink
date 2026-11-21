@@ -14,6 +14,7 @@ namespace Janalis\Tuink\Tests;
 use Janalis\Tuink\Driver\InProcessDriver;
 use Janalis\Tuink\Example\DemoApp;
 use Janalis\Tuink\Exception\ExpectationException;
+use Janalis\Tuink\Launch;
 use Janalis\Tuink\Selector\Element;
 use Janalis\Tuink\Selector\WidgetTree;
 use Janalis\Tuink\Session;
@@ -238,7 +239,11 @@ final class WidgetQueryTest extends TestCase
     #[DataProvider('failures')]
     public function testFailureMessages(\Closure $assertion, string $message): void
     {
-        $session = $this->demo(timeout: 0.05);
+        // Some messages show the status, which must still be "loading"
+        $session = $this->demo(timeout: 0.05, env: ['DEMO_READY_AFTER' => '5']);
+        // Starting settles within that timeout too: on a loaded machine, the demo may not have drawn its size yet, which
+        // its first tick writes, and "should not see" checks would take that for a pass
+        $session->waitUntil(static fn (Session $s): bool => \str_contains($s->getScreenText(), 'Size: 80x24'), message: 'The demo did not draw its size.', timeout: 2.0);
 
         try {
             $assertion($session);
@@ -440,13 +445,17 @@ final class WidgetQueryTest extends TestCase
         $this->assertSame(['text#with'], \array_map(static fn (Element $e): string => $e->describe(), $this->session->find('[label="Path"]')));
     }
 
-    private function demo(float $timeout = 1.0): Session
+    /**
+     * @param array<string, string> $env
+     */
+    private function demo(float $timeout = 1.0, array $env = []): Session
     {
         $this->session = new Session(
             new InProcessDriver(static fn (VirtualTerminal $terminal): Tui => new DemoApp($terminal)->tui),
             timeout: $timeout,
             quietPeriod: 0.02,
         );
+        $this->session->setLaunch(new Launch(env: $env));
         $this->session->start();
 
         return $this->session;
