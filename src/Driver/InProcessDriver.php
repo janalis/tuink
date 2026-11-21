@@ -144,7 +144,14 @@ final class InProcessDriver implements DriverInterface, WidgetTreeProviderInterf
 
             throw $e;
         }
-        $tui->start();
+        try {
+            $tui->start();
+        } catch (\Throwable $e) {
+            // Booted but never run: the shutdown still owes what the boot started
+            $this->shutDown();
+
+            throw $e;
+        }
     }
 
     public function stop(): void
@@ -153,7 +160,18 @@ final class InProcessDriver implements DriverInterface, WidgetTreeProviderInterf
             if (null !== $this->tui && $this->tui->isRunning()) {
                 $this->tui->stop();
             }
-            // What the entry point does once run() returned: the application saves and stops what it started
+        } finally {
+            $this->shutDown();
+        }
+    }
+
+    /**
+     * What the entry point does once run() returned, whether or not stopping the Tui threw: the application saves and
+     * stops what it started; then what it left on the loop goes.
+     */
+    private function shutDown(): void
+    {
+        try {
             $this->application?->shutdown();
         } finally {
             $this->application = null;

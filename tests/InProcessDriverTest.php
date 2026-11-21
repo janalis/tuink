@@ -368,6 +368,71 @@ final class InProcessDriverTest extends TestCase
         $this->assertSame(['boot: not running, set'], $calls);
     }
 
+    public function testAStartThatThrowsAfterTheBootStillShutsTheApplicationDown(): void
+    {
+        $before = EventLoop::getIdentifiers();
+        $calls = [];
+        $driver = new InProcessDriver(static function (VirtualTerminal $terminal) use (&$calls): InProcessApplicationInterface {
+            return new RecordingApplication(
+                new class(terminal: $terminal) extends Tui {
+                    #[\Override]
+                    public function start(): void
+                    {
+                        throw new \RuntimeException('no start');
+                    }
+                },
+                $calls,
+                onBoot: static function (): void {
+                    EventLoop::delay(10, static fn () => null);
+                },
+            );
+        });
+        $this->driver = $driver;
+
+        try {
+            $driver->start(20, rows: 5, launch: new Launch(env: ['TUINK_TEST_APP' => 'set']));
+            $this->fail('The start was expected to fail.');
+        } catch (\RuntimeException $e) {
+            $this->assertSame('no start', $e->getMessage());
+        }
+
+        $this->assertSame(['boot: not running, set', 'shutdown: not running, set'], $calls);
+        $this->assertFalse($driver->isStarted());
+        $this->assertFalse(\getenv('TUINK_TEST_APP'));
+        $this->assertSame([], \array_values(\array_diff(EventLoop::getIdentifiers(), $before)));
+    }
+
+    public function testAStopThatThrowsStillShutsTheApplicationDown(): void
+    {
+        $calls = [];
+        $driver = new InProcessDriver(static function (VirtualTerminal $terminal) use (&$calls): InProcessApplicationInterface {
+            return new RecordingApplication(
+                new class(terminal: $terminal) extends Tui {
+                    #[\Override]
+                    public function stop(): void
+                    {
+                        parent::stop();
+
+                        throw new \RuntimeException('no stop');
+                    }
+                },
+                $calls,
+            );
+        });
+        $this->driver = $driver;
+        $driver->start(20, rows: 5);
+
+        try {
+            $driver->stop();
+            $this->fail('The stop was expected to fail.');
+        } catch (\RuntimeException $e) {
+            $this->assertSame('no stop', $e->getMessage());
+        }
+
+        $this->assertSame(['boot: not running, ', 'shutdown: not running, '], $calls);
+        $this->assertFalse($driver->isStarted());
+    }
+
     private function demo(): InProcessDriver
     {
         $this->driver = new InProcessDriver(static fn (VirtualTerminal $terminal): Tui => new DemoApp($terminal)->tui);

@@ -169,13 +169,16 @@ final class Session
     }
 
     /**
-     * Reads, checks and clicks inside the frame whose top border carries the title.
+     * Checks on where a text shows and whether it is colored, and clicks on its last occurrence on a line.
      */
     public function text(): TextChecks
     {
         return new TextChecks($this);
     }
 
+    /**
+     * Reads, checks and clicks inside the frame whose top border carries the title.
+     */
     public function box(string $title): BoxChecks
     {
         return new BoxChecks($this, $title);
