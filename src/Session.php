@@ -339,22 +339,31 @@ final class Session
         $this->focus($selector);
         $selected = fn () => $this->findOne($selector)->selected ?? throw new \LogicException(\sprintf('The element "%s" has no selected item; it is not a list.', $selector));
 
-        // Walk down, then up; a direction ends when the selection comes back to an item already seen, at the end of the list or after wrapping around
-        $seen = [$selected()];
+        // Walk down, then up; a direction ends when the selection comes back to an item it passed: it stopped at the end of
+        // the list, or wrapped around. Back where the walk down started, it saw every item; otherwise the walk up passes
+        // again over what the walk down saw, to reach the items above.
+        $current = $selected();
+        $seen = [$current];
         foreach (['Down', 'Up'] as $key) {
-            while (true) {
-                if ($selected() === $label) {
-                    $this->press('Enter');
-
-                    return;
-                }
+            $walked = [$current];
+            while ($current !== $label) {
                 $this->press($key);
-                $now = $selected();
-                if (\in_array($now, $seen, strict: true) && $now !== $label) {
-                    break;
+                $current = $selected();
+                if (\in_array($current, $walked, strict: true)) {
+                    if (\count($walked) > 1 && $walked[0] === $current) {
+                        break 2;
+                    }
+
+                    continue 2;
                 }
-                $seen[] = $now;
+                $walked[] = $current;
+                if (!\in_array($current, $seen, strict: true)) {
+                    $seen[] = $current;
+                }
             }
+            $this->press('Enter');
+
+            return;
         }
 
         throw new ExpectationException(\sprintf('The list "%s" has no item "%s"; its items are "%s".', $selector, $label, \implode('", "', $seen)), $this->dump());

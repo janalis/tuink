@@ -14,6 +14,7 @@ namespace Janalis\Tuink\Tests;
 use Janalis\Tuink\Driver\InProcessDriver;
 use Janalis\Tuink\Example\DemoApp;
 use Janalis\Tuink\Exception\ExpectationException;
+use Janalis\Tuink\Keys;
 use Janalis\Tuink\Session;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
@@ -23,6 +24,7 @@ use Symfony\Component\Tui\Event\InputEvent;
 use Symfony\Component\Tui\Terminal\VirtualTerminal;
 use Symfony\Component\Tui\Tui;
 use Symfony\Component\Tui\Widget\InputWidget;
+use Symfony\Component\Tui\Widget\SelectListWidget;
 use Symfony\Component\Tui\Widget\TextWidget;
 
 /**
@@ -240,6 +242,47 @@ final class SessionActionsTest extends TestCase
         $this->demo()->selectOption('#name', label: 'Red');
     }
 
+    public function testSelectingAboveAndBelowInAListThatDoesNotWrap(): void
+    {
+        $keys = [];
+        $session = $this->colors(wraps: false, keys: $keys);
+
+        $session->selectOption('#color', label: 'Red');
+        $this->assertSame('Red', $session->findOne('#color')->selected);
+        // Down to Blue, Down again in vain, Up past Green to Red, and Enter
+        $this->assertSame([Keys::key('Down'), Keys::key('Down'), Keys::key('Up'), Keys::key('Up'), Keys::key('Enter')], $keys);
+        $session->selectOption('#color', label: 'Blue');
+        $this->assertSame('Blue', $session->findOne('#color')->selected);
+        // From the last item, Down goes nowhere and the walk up starts at once
+        $session->selectOption('#color', label: 'Red');
+        $this->assertSame('Red', $session->findOne('#color')->selected);
+    }
+
+    public function testAMissingItemInAListThatWrapsTakesOneTurnRound(): void
+    {
+        $keys = [];
+        $session = $this->colors(wraps: true, keys: $keys);
+
+        try {
+            $session->selectOption('#color', label: 'Purple');
+            $this->fail('An expectation exception was expected.');
+        } catch (ExpectationException $e) {
+            $this->assertStringStartsWith('The list "#color" has no item "Purple"; its items are "Green", "Blue", "Red".', $e->getMessage());
+        }
+        // Down from Green to Blue, Red, and Green again: every item was seen, there is no need to walk up
+        $this->assertSame(\array_fill(0, count: 3, value: Keys::key('Down')), $keys);
+    }
+
+    public function testSelectingAMissingItemInAListThatDoesNotWrapNamesEveryItem(): void
+    {
+        $session = $this->colors(wraps: false);
+
+        $this->expectException(ExpectationException::class);
+        $this->expectExceptionMessageIsOrContains('The list "#color" has no item "Purple"; its items are "Green", "Blue", "Red".');
+
+        $session->selectOption('#color', label: 'Purple');
+    }
+
     public function testFindOneWaitsForAWidgetAddedLater(): void
     {
         $this->session = new Session(
@@ -286,6 +329,40 @@ final class SessionActionsTest extends TestCase
         $session->stop();
 
         $this->assertStringStartsWith("Screen (80x24, in_process driver, exited):\n1 | Tuink demo", $session->dump());
+    }
+
+    /**
+     * Red, Green and Blue, with Green selected, in a list that wraps around or stops at its ends.
+     *
+     * @param list<string> $keys Collects the keys the list receives
+     */
+    private function colors(bool $wraps, array &$keys = []): Session
+    {
+        $this->session = new Session(
+            new InProcessDriver(static function (VirtualTerminal $terminal) use ($wraps, &$keys): Tui {
+                $tui = new Tui(terminal: $terminal);
+                $labels = ['Red', 'Green', 'Blue'];
+                $list = new SelectListWidget([['value' => 'red', 'label' => 'Red'], ['value' => 'green', 'label' => 'Green'], ['value' => 'blue', 'label' => 'Blue']]);
+                $list->setId('color')->setSelectedIndex(1);
+                $list->onInput(static function (string $data) use ($list, $labels, $wraps, &$keys): bool {
+                    $keys[] = $data;
+                    $up = Keys::key('Up') === $data;
+                    $down = Keys::key('Down') === $data;
+                    $index = \array_search($list->getSelectedItem()['label'] ?? null, $labels, strict: true);
+
+                    return !$wraps && (($up && 0 === $index) || ($down && 2 === $index));
+                });
+                $tui->add($list);
+                $tui->setFocus($list);
+
+                return $tui;
+            }),
+            timeout: 1.0,
+            quietPeriod: 0.02,
+        );
+        $this->session->start();
+
+        return $this->session;
     }
 
     private function demo(): Session
