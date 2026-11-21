@@ -145,6 +145,9 @@ final class KeysTest extends TestCase
         yield ['Ctrl+Shift+Space', "\x1b[32;6u", 'ctrl+shift+space'];
         yield ['Ctrl+Shift+A', "\x1b[97;6u", 'ctrl+shift+a'];
         yield ['Ctrl+Alt+s', "\x1b[115;7u", 'ctrl+alt+s'];
+        yield ['Ctrl+,', "\x1b[44;5u", 'ctrl+,'];
+        yield ['Ctrl+1', "\x1b[49;5u", 'ctrl+1'];
+        yield ['Ctrl+Alt+.', "\x1b[46;7u", 'ctrl+alt+.'];
         yield ['Super+S', "\x1b[115;9u", 'super+s'];
         yield ['Cmd+s', "\x1b[115;9u", 'super+s'];
         yield ['Command+Shift+Z', "\x1b[122;10u", 'shift+super+z'];
@@ -171,7 +174,6 @@ final class KeysTest extends TestCase
     {
         yield 'an unclosed bracket' => ['<ab', 'Unknown key "<ab"'];
         yield 'empty brackets' => ['<>', 'Unknown key "<>"'];
-        yield 'a control code no key has' => ['Ctrl+1', 'Key "Ctrl+1" has no control code.'];
     }
 
     #[DataProvider('unknownKeys')]
