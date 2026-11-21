@@ -14,6 +14,7 @@ namespace Janalis\Tuink\Tests;
 use Janalis\Tuink\Driver\ProcessDriver;
 use Janalis\Tuink\Driver\RunningProcess;
 use Janalis\Tuink\Exception\DriverException;
+use Janalis\Tuink\Exception\ExpectationException;
 use Janalis\Tuink\Exception\UnsupportedDriverException;
 use Janalis\Tuink\Launch;
 use Janalis\Tuink\Probe\ProbeServer;
@@ -78,6 +79,32 @@ final class ProcessDriverTest extends TestCase
 
         $session->assertExited(0);
         $this->assertFalse($session->getDriver()->isRunning());
+    }
+
+    public function testWaitingOnAnApplicationThatExitedDoesNotSpin(): void
+    {
+        $this->session = new Session(new ProcessDriver(['/bin/sh', '-c', 'echo bye']), timeout: 2.0);
+        $this->session->start();
+        $this->session->assertExited();
+
+        // Each try waits a moment, as it does while the application runs, instead of retrying at once until the deadline
+        $tries = 0;
+        try {
+            $this->session->waitUntil(
+                static function () use (&$tries): bool {
+                    ++$tries;
+
+                    return false;
+                },
+                message: 'never',
+                timeout: 0.2,
+            );
+            $this->fail('An expectation exception was expected.');
+        } catch (ExpectationException $e) {
+            $this->assertStringStartsWith('never', $e->getMessage());
+        }
+
+        $this->assertLessThanOrEqual(21, $tries);
     }
 
     public function testEnvironment(): void

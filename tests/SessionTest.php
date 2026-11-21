@@ -56,6 +56,30 @@ final class SessionTest extends TestCase
         }
     }
 
+    public function testWaitingWithNothingStartedDoesNotSpin(): void
+    {
+        $session = new Session(new InProcessDriver(static fn (VirtualTerminal $terminal): Tui => new Tui(terminal: $terminal)));
+
+        // Each try waits a moment, as pump() does once something runs, instead of retrying at once until the deadline
+        $tries = 0;
+        try {
+            $session->waitUntil(
+                static function () use (&$tries): bool {
+                    ++$tries;
+
+                    return false;
+                },
+                message: 'never',
+                timeout: 0.2,
+            );
+            $this->fail('An expectation exception was expected.');
+        } catch (ExpectationException $e) {
+            $this->assertStringStartsWith('never', $e->getMessage());
+        }
+
+        $this->assertLessThanOrEqual(21, $tries);
+    }
+
     public function testADroppedSessionRemovesItsWorkspace(): void
     {
         $session = new Session(new InProcessDriver(static fn (VirtualTerminal $terminal): Tui => new Tui(terminal: $terminal)), 20, 5, 1.0);

@@ -494,6 +494,10 @@ final class Session
             if ($this->driver->isStarted()) {
                 $this->driver->pump(0.01);
             }
+            if (!$this->driver->isRunning()) {
+                // pump() returns at once when nothing runs, and the screen will not change: do not spin until the deadline
+                \usleep(10_000);
+            }
         }
     }
 
