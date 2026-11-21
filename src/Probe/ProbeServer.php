@@ -36,6 +36,8 @@ final class ProbeServer
     /** @var resource|null */
     private $connection;
     private bool $missing = false;
+    /** Whether the probe still owes the answer to a request that timed out */
+    private bool $late = false;
 
     /**
      * @param \Closure(): bool $isRunning
@@ -106,14 +108,34 @@ final class ProbeServer
      */
     private function ask(array $request): mixed
     {
-        $deadline = \microtime(true) + $this->timeout;
-        $connection = $this->connection($deadline);
+        $connection = $this->connection(\microtime(true) + $this->timeout);
+        // The probe takes one request at a time: the answer to one that timed out comes first, and is dropped unread, as
+        // its request was reported failed. It gets a timeout of its own, and the request another, so that an
+        // application slow to answer is not failed twice for it.
+        if ($this->late) {
+            $this->line($connection, timedOut: 'The tuink probe has not answered a request that timed out within %.1f more seconds.');
+        }
         // A dead application fails the write with a warning, and the read below sees the end of the stream
         Warnings::capture(static fn (): int|false => \fwrite($connection, \json_encode($request, \JSON_THROW_ON_ERROR)."\n"));
+        $this->late = true;
+        $line = $this->line($connection, timedOut: 'The tuink probe did not answer within %.1f seconds; the application may still carry the request out later.');
+        $this->late = false;
 
+        return self::answer(\json_decode($line, associative: true, flags: \JSON_THROW_ON_ERROR));
+    }
+
+    /**
+     * Waits up to the timeout for the next line the probe sends.
+     *
+     * @param resource $connection
+     * @param string   $timedOut   The message when it does not come, with %.1f for the timeout
+     */
+    private function line($connection, string $timedOut): string
+    {
+        $deadline = \microtime(true) + $this->timeout;
         while (!self::readable($connection)) {
             if (\microtime(true) >= $deadline) {
-                throw new DriverException(\sprintf('The tuink probe did not answer within %.1f seconds.', $this->timeout));
+                throw new DriverException(\sprintf($timedOut, $this->timeout));
             }
             ($this->idle)();
         }
@@ -124,7 +146,7 @@ final class ProbeServer
             throw new DriverException('The tuink probe connection was closed.');
         }
 
-        return self::answer(\json_decode($line, associative: true, flags: \JSON_THROW_ON_ERROR));
+        return $line;
     }
 
     /**
@@ -211,5 +233,6 @@ final class ProbeServer
             \fclose($this->connection);
         }
         $this->connection = null;
+        $this->late = false;
     }
 }

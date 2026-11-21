@@ -12,7 +12,7 @@
                 "Janalis\\Tuink\\Session::waitUntil",
                 "Janalis\\Tuink\\Session::settleFrom",
                 "Janalis\\Tuink\\Driver\\ProcessDriver::pump",
-                "Janalis\\Tuink\\Probe\\ProbeServer::ask",
+                "Janalis\\Tuink\\Probe\\ProbeServer::line",
                 "Janalis\\Tuink\\Probe\\ProbeServer::connection"
             ]
         },

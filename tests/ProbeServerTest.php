@@ -14,6 +14,7 @@ namespace Janalis\Tuink\Tests;
 use Janalis\Tuink\Exception\DriverException;
 use Janalis\Tuink\Exception\UnsupportedDriverException;
 use Janalis\Tuink\Probe\ProbeServer;
+use Janalis\Tuink\Tests\Fixtures\SlowProbe;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
@@ -106,9 +107,123 @@ final class ProbeServerTest extends TestCase
             $server->tree();
             $this->fail('A driver exception was expected.');
         } catch (DriverException $e) {
-            $this->assertSame('The tuink probe did not answer within 0.1 seconds.', $e->getMessage());
+            $this->assertSame('The tuink probe did not answer within 0.1 seconds; the application may still carry the request out later.', $e->getMessage());
         } finally {
             \fclose($client);
+            $server->close();
+        }
+    }
+
+    public function testALateAnswerIsNotTakenForTheNextOne(): void
+    {
+        [$server, $client] = self::connected(timeout: 0.1);
+
+        try {
+            try {
+                $server->tree();
+                $this->fail('A driver exception was expected.');
+            } catch (DriverException $e) {
+                $this->assertSame('The tuink probe did not answer within 0.1 seconds; the application may still carry the request out later.', $e->getMessage());
+            }
+            // The application answers the first request late, then the second
+            \fwrite($client, '{"xml":"<late/>"}'."\n".'{"xml":"<container/>"}'."\n");
+
+            $this->assertSame('<container/>', $server->tree());
+        } finally {
+            \fclose($client);
+            $server->close();
+        }
+    }
+
+    public function testALateAnswerIsDroppedUnreadEvenAnError(): void
+    {
+        [$server, $client] = self::connected(timeout: 0.1);
+
+        try {
+            try {
+                $server->focus(3);
+                $this->fail('A driver exception was expected.');
+            } catch (DriverException $e) {
+                $this->assertSame('The tuink probe did not answer within 0.1 seconds; the application may still carry the request out later.', $e->getMessage());
+            }
+            // The focus failed after all, and its answer is not even JSON: the timeout already reported that request
+            \fwrite($client, '{"error":"No widget has the index 3."'."\n".'{"xml":"<container/>"}'."\n");
+
+            $this->assertSame('<container/>', $server->tree());
+        } finally {
+            \fclose($client);
+            $server->close();
+        }
+    }
+
+    public function testASlowApplicationIsNotFailedTwiceForOneLateAnswer(): void
+    {
+        // The application answers the first request after 0.7 s, past the 0.5 s timeout, and the next after 0.4 s
+        $app = new SlowProbe([0.7, 0.4]);
+        $server = ProbeServer::listen(timeout: 0.5, isRunning: static fn (): bool => true, idle: $app(...), parent: \sys_get_temp_dir());
+        $app->connect($server->path);
+
+        try {
+            try {
+                $server->tree();
+                $this->fail('A driver exception was expected.');
+            } catch (DriverException $e) {
+                $this->assertSame('The tuink probe did not answer within 0.5 seconds; the application may still carry the request out later.', $e->getMessage());
+            }
+
+            // 0.2 s for the late answer, then 0.4 s for this one: each within its own timeout, not within one shared
+            $this->assertSame('<answer-2/>', $server->tree());
+        } finally {
+            $app->close();
+            $server->close();
+        }
+    }
+
+    public function testNoRequestIsSentWhileAnAnswerIsLate(): void
+    {
+        [$server, $client] = self::connected(timeout: 0.1);
+
+        try {
+            foreach ([
+                'The tuink probe did not answer within 0.1 seconds; the application may still carry the request out later.',
+                'The tuink probe has not answered a request that timed out within 0.1 more seconds.',
+            ] as $message) {
+                try {
+                    $server->tree();
+                    $this->fail('A driver exception was expected.');
+                } catch (DriverException $e) {
+                    $this->assertSame($message, $e->getMessage());
+                }
+            }
+            \stream_set_blocking($client, enable: false);
+
+            // The second tree() waited for the first answer instead of sending its request behind it
+            $this->assertSame('{"op":"tree"}'."\n", \stream_get_contents($client));
+        } finally {
+            \fclose($client);
+            $server->close();
+        }
+    }
+
+    public function testALateAnswerOnAConnectionThatHungUpIsForgotten(): void
+    {
+        [$server, $client] = self::connected();
+        \fclose($client);
+
+        try {
+            try {
+                $server->tree();
+                $this->fail('A driver exception was expected.');
+            } catch (DriverException $e) {
+                $this->assertSame('The tuink probe connection was closed.', $e->getMessage());
+            }
+            $client = \stream_socket_client('unix://'.$server->path);
+            $this->assertIsResource($client);
+            \fwrite($client, '{"xml":"<container/>"}'."\n");
+
+            $this->assertSame('<container/>', $server->tree());
+            \fclose($client);
+        } finally {
             $server->close();
         }
     }
