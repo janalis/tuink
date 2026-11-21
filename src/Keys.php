@@ -210,7 +210,11 @@ final class Keys
         }
 
         // A letter names a key, whatever its case, as with Ctrl: only Shift makes it a capital
-        $char = 0 !== ($bits & 1) ? \mb_strtoupper($base) : (0 !== $bits ? \mb_strtolower($base) : $base);
+        $char = match (true) {
+            0 !== ($bits & 1) => \mb_strtoupper($base),
+            0 !== $bits => \mb_strtolower($base),
+            default => $base,
+        };
         if (0 !== ($bits & 4)) {
             $control = self::control($char);
             if (null === $control) {

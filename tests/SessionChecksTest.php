@@ -70,12 +70,12 @@ final class SessionChecksTest extends TestCase
         $session->assertTextWithoutStyle('plain', attribute: 'bold');
         $session->assertTextColor('世', color: 'red');
         $session->assertTextBackground('Blue', color: 'blue');
-        $session->assertTextHasColor('世');
-        $session->assertTextHasColor('Bold', colored: false);
-        $session->assertLineShowingContains('Blue', '世');
-        $session->assertLineShowingContains('Bold', 'Blue', contains: false);
-        $this->assertSame('世 Blue', $session->lineShowing('Blue'));
-        $this->assertNull($session->lineShowing('Nowhere'));
+        $session->text()->assertColored(text: '世');
+        $session->text()->assertNotColored(text: 'Bold');
+        $session->text()->assertLineShowingContains(anchor: 'Blue', text: '世');
+        $session->text()->assertLineShowingNotContains(anchor: 'Bold', text: 'Blue');
+        $this->assertSame('世 Blue', $session->text()->lineShowing(anchor: 'Blue'));
+        $this->assertNull($session->text()->lineShowing(anchor: 'Nowhere'));
 
         $this->addToAssertionCount(8);
     }
@@ -89,13 +89,20 @@ final class SessionChecksTest extends TestCase
         yield 'a single cell' => [static fn (Session $s) => $s->assertTextStyle('世', attribute: 'bold'), 'The text "世" is not bold: red.'];
         yield 'without' => [static fn (Session $s) => $s->assertTextWithoutStyle('Bold', attribute: 'bold'), 'The text "Bold" is bold: bold.'];
         yield 'color' => [static fn (Session $s) => $s->assertTextColor('Bold', color: 'red'), 'The text "Bold" does not have the foreground color red: bold.'];
-        yield 'has a color' => [static fn (Session $s) => $s->assertTextHasColor('Bold'), 'The text "Bold" is not colored: bold.'];
-        yield 'has no color' => [static fn (Session $s) => $s->assertTextHasColor('世', colored: false), 'The text "世" is colored: red.'];
-        yield 'partly colored, not all' => [static fn (Session $s) => $s->assertTextHasColor('世 B'), 'The text "世 B" is not colored: red | plain | on blue.'];
-        yield 'partly colored, not none' => [static fn (Session $s) => $s->assertTextHasColor('世 B', colored: false), 'The text "世 B" is colored: red | plain | on blue.'];
-        yield 'no line shows the anchor' => [static fn (Session $s) => $s->assertLineShowingContains('Nowhere', 'plain'), 'No line shows "Nowhere".'];
-        yield 'the line lacks the text' => [static fn (Session $s) => $s->assertLineShowingContains('Bold', 'Blue'), 'The line showing "Bold" does not contain "Blue": Bold plain'];
-        yield 'the line has the text' => [static fn (Session $s) => $s->assertLineShowingContains('Bold', 'plain', contains: false), 'The line showing "Bold" contains "plain": Bold plain'];
+        yield 'has a color' => [static fn (Session $s) => $s->text()->assertColored(text: 'Bold'), 'The text "Bold" is not colored: bold.'];
+        yield 'has no color' => [static fn (Session $s) => $s->text()->assertNotColored(text: '世'), 'The text "世" is colored: red.'];
+        yield 'partly colored, not all' => [static fn (Session $s) => $s->text()->assertColored(text: '世 B'), 'The text "世 B" is not colored: red | plain | on blue.'];
+        yield 'partly colored, not none' => [static fn (Session $s) => $s->text()->assertNotColored(text: '世 B'), 'The text "世 B" is colored: red | plain | on blue.'];
+        yield 'no line shows the anchor' => [static fn (Session $s) => $s->text()->assertLineShowingContains(anchor: 'Nowhere', text: 'plain'), 'No line shows "Nowhere".'];
+        yield 'no line shows the anchor, for a text it should not contain' => [
+            static fn (Session $s) => $s->text()->assertLineShowingNotContains(anchor: 'Nowhere', text: 'plain'),
+            'No line shows "Nowhere".',
+        ];
+        yield 'the line lacks the text' => [
+            static fn (Session $s) => $s->text()->assertLineShowingContains(anchor: 'Bold', text: 'Blue'),
+            'The line showing "Bold" does not contain "Blue": Bold plain',
+        ];
+        yield 'the line has the text' => [static fn (Session $s) => $s->text()->assertLineShowingNotContains(anchor: 'Bold', text: 'plain'), 'The line showing "Bold" contains "plain": Bold plain'];
         yield 'background' => [static fn (Session $s) => $s->assertTextBackground('plain', color: 'blue'), 'The text "plain" does not have the background color blue: plain.'];
     }
 
