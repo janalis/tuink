@@ -53,6 +53,7 @@ final class KeysTest extends TestCase
         yield 'super capital e acute' => ['Super+É', "\x1b[233;9u"];
         yield 'ctrl e acute' => ['Ctrl+é', "\x1b[233;5u"];
         yield 'ctrl shift e acute' => ['Ctrl+Shift+é', "\x1b[233;6u"];
+        yield 'alt capital e acute' => ['Alt+É', "\x1bé"];
         yield 'alt shift x' => ['Alt+Shift+x', "\x1bX"];
         yield 'a capital alone' => ['X', 'X'];
         yield 'shift a' => ['Shift+a', 'A'];
