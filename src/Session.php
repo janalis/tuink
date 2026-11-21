@@ -974,6 +974,7 @@ final class Session
         $deadline = \microtime(true) + $this->timeout;
 
         while (\microtime(true) < $deadline) {
+            $pumpedAt = \microtime(true);
             if ($this->driver->pump(0.005)) {
                 if (null !== $lastWrite || '' !== $this->getScreenText()) {
                     $lastWrite = \microtime(true);
@@ -981,7 +982,9 @@ final class Session
 
                 continue;
             }
-            if (!$this->driver->isRunning() || (null !== $lastWrite && (\microtime(true) - $lastWrite) >= $this->quietPeriod)) {
+            // Quiet counts from a pump that began the quiet period after the last write: one that began earlier may have
+            // seen this process lose the CPU before the loop ran what was due by then, like the frame an action asked for
+            if (!$this->driver->isRunning() || (null !== $lastWrite && ($pumpedAt - $lastWrite) >= $this->quietPeriod)) {
                 return;
             }
         }

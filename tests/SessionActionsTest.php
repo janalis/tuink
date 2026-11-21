@@ -16,6 +16,7 @@ use Janalis\Tuink\Example\DemoApp;
 use Janalis\Tuink\Exception\ExpectationException;
 use Janalis\Tuink\Keys;
 use Janalis\Tuink\Session;
+use Janalis\Tuink\Tests\Fixtures\StarvedDriver;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use Revolt\EventLoop;
@@ -232,6 +233,52 @@ final class SessionActionsTest extends TestCase
         $action($session);
 
         $this->assertStringContainsString($shown, $session->getScreenText());
+    }
+
+    public function testAnActionSettlesWhenTheTestProcessLosesTheCpu(): void
+    {
+        // The frame is due 10 ms after the keys, but the process gets the CPU back 25 ms after each pump, past the
+        // quiet period: settling must still run the overdue frame
+        $this->session = new Session(
+            new StarvedDriver(new InProcessDriver(static fn (VirtualTerminal $terminal): Tui => new DemoApp($terminal)->tui), starvedMicroseconds: 25_000),
+            timeout: 1.0,
+            quietPeriod: 0.02,
+        );
+        $this->session->start();
+        $this->session->type('Ada');
+
+        $this->assertStringContainsString('Name: Ada', $this->session->getScreenText());
+    }
+
+    public function testWhatTheOverdueFrameStartsIsWaitedFor(): void
+    {
+        // Each key shows "one", then "two" 12 ms later: drawn by the overdue turn, "one" starts the quiet period again
+        $this->session = new Session(
+            new StarvedDriver(new InProcessDriver(static function (VirtualTerminal $terminal): Tui {
+                $tui = new Tui(terminal: $terminal);
+                $text = new TextWidget('zero');
+                $tui->add($text);
+                $tui->addListener(static function (InputEvent $event) use ($tui, $text): void {
+                    $text->setText('one');
+                    $tui->requestRender();
+                    EventLoop::delay(0.012, static function () use ($tui, $text): void {
+                        $text->setText('two');
+                        $tui->requestRender();
+                    });
+                });
+
+                return $tui;
+            }), starvedMicroseconds: 25_000),
+            timeout: 2.0,
+            quietPeriod: 0.02,
+        );
+        $this->session->start();
+        $start = \microtime(true);
+        $this->session->type('x');
+
+        $this->assertSame('two', $this->session->getScreenText());
+        // Settled once quiet, not at the timeout
+        $this->assertLessThan(1.0, \microtime(true) - $start);
     }
 
     public function testSelectingFromSomethingThatIsNotAList(): void
