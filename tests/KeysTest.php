@@ -49,6 +49,10 @@ final class KeysTest extends TestCase
         yield 'ctrl alt space' => ['Ctrl+Alt+Space', "\x1b\x00"];
         yield 'alt x' => ['Alt+x', "\x1bx"];
         yield 'alt capital x' => ['Alt+X', "\x1bx"];
+        // Beyond ASCII, the code point, lowercased by character rather than by byte
+        yield 'super capital e acute' => ['Super+É', "\x1b[233;9u"];
+        yield 'ctrl e acute' => ['Ctrl+é', "\x1b[233;5u"];
+        yield 'ctrl shift e acute' => ['Ctrl+Shift+é', "\x1b[233;6u"];
         yield 'alt shift x' => ['Alt+Shift+x', "\x1bX"];
         yield 'a capital alone' => ['X', 'X'];
         yield 'shift a' => ['Shift+a', 'A'];
@@ -149,6 +153,8 @@ final class KeysTest extends TestCase
         yield ['Ctrl+Shift+A', "\x1b[97;6u", 'ctrl+shift+a'];
         yield ['Ctrl+Alt+s', "\x1b[115;7u", 'ctrl+alt+s'];
         yield ['Ctrl+,', "\x1b[44;5u", 'ctrl+,'];
+        yield ['Ctrl+Shift+-', "\x1b[45;6u", 'ctrl+shift+-'];
+        yield ['Ctrl+Shift+=', "\x1b[61;6u", 'ctrl+shift+='];
         yield ['Ctrl+1', "\x1b[49;5u", 'ctrl+1'];
         yield ['Ctrl+Alt+.', "\x1b[46;7u", 'ctrl+alt+.'];
         yield ['Super+S', "\x1b[115;9u", 'super+s'];

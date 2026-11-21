@@ -11,6 +11,8 @@ declare(strict_types=1);
 
 namespace Janalis\Tuink\Check;
 
+use Janalis\Tuink\Box;
+use Janalis\Tuink\Mouse;
 use Janalis\Tuink\Session;
 use Janalis\Tuink\Style;
 
@@ -66,6 +68,28 @@ final readonly class TextChecks
             fn (): bool => null !== $this->lineShowing($anchor) && !\str_contains((string) $this->lineShowing($anchor), $text),
             fn (): string => $this->failure($anchor, \sprintf('contains "%s"', $text)),
         );
+    }
+
+    /**
+     * Clicks the first character of the LAST occurrence of $text on a line: where a row shows the same
+     * text twice, like two close buttons, the text steps click the first.
+     *
+     * @param list<string> $modifiers Shift, Alt, Ctrl
+     */
+    public function clickLastOnLine(string $text, int $line, string $button = Mouse::LEFT, int $count = 1, array $modifiers = []): void
+    {
+        $column = null;
+        $this->session->waitUntil(
+            function () use ($text, $line, &$column): bool {
+                $found = Box::occurrences($this->session->getGrid()[$line - 1] ?? [], $text);
+                $column = [] === $found ? null : \end($found)[0] + 1;
+
+                return null !== $column;
+            },
+            \sprintf('Line %d does not show "%s".', $line, $text),
+        );
+        \assert(null !== $column, description: 'waitUntil() returns once the text is found.');
+        $this->session->click($line, $column, $button, $count, $modifiers);
     }
 
     /**

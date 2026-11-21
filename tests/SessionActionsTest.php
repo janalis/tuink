@@ -15,6 +15,7 @@ use Janalis\Tuink\Driver\InProcessDriver;
 use Janalis\Tuink\Example\DemoApp;
 use Janalis\Tuink\Exception\ExpectationException;
 use Janalis\Tuink\Keys;
+use Janalis\Tuink\Mouse;
 use Janalis\Tuink\Session;
 use Janalis\Tuink\Tests\Fixtures\StarvedDriver;
 use Janalis\Tuink\Tests\Fixtures\Widget\IndexedSelectListWidget;
@@ -73,6 +74,32 @@ final class SessionActionsTest extends TestCase
         $this->recorder()->clickElement('#box');
 
         $this->assertSame(["\x1b[<0;11;2M", "\x1b[<0;11;2m"], $this->received);
+    }
+
+    public function testClickingTheLastOccurrenceOnALine(): void
+    {
+        // "x ✖ x ✖": the text steps click the first ✖, in column 3; the last is in column 7
+        $session = $this->recorder();
+        $session->text()->clickLastOnLine('✖', line: 5);
+        $session->text()->clickLastOnLine('y', line: 4, button: Mouse::RIGHT, count: 2, modifiers: ['Ctrl']);
+
+        $this->assertSame(
+            ["\x1b[<0;7;5M", "\x1b[<0;7;5m", "\x1b[<18;4;4M", "\x1b[<18;4;4m", "\x1b[<18;4;4M", "\x1b[<18;4;4m"],
+            $this->received,
+        );
+    }
+
+    public function testClickingTheLastOccurrenceOfWhatALineDoesNotShow(): void
+    {
+        $session = $this->recorder();
+
+        try {
+            $session->text()->clickLastOnLine('y', line: 5);
+            $this->fail('The click was expected to fail.');
+        } catch (ExpectationException $e) {
+            $this->assertStringContainsString('Line 5 does not show "y".', $e->getMessage());
+        }
+        $this->assertSame([], $this->received);
     }
 
     public function testClickingTextAfterAWideCharacter(): void
@@ -576,6 +603,7 @@ final class SessionActionsTest extends TestCase
                 $tui->add(new TextWidget('top')->setId('top'));
                 $tui->add(new TextWidget("ab\ncd")->setId('box'));
                 $tui->add(new TextWidget('世xy')->setId('wide'));
+                $tui->add(new TextWidget('x ✖ x ✖')->setId('twice'));
                 $tui->addListener(function (InputEvent $event): void {
                     $this->received[] = $event->getData();
                 });

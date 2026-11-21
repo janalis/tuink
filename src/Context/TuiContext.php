@@ -104,6 +104,13 @@ class TuiContext implements TuinkAwareContextInterface
         $this->getSession()->clickText($text, $button, $count, self::modifiers($modifiers));
     }
 
+    #[When('/^I (double-|triple-|right-|middle-)?click on the last "([^"]+)" on line (\d+)(?: with "([^"]+)")?$/')]
+    public function clickLastOnLine(string $kind, string $text, int $line, string $modifiers = ''): void
+    {
+        [$button, $count] = self::clickKind($kind);
+        $this->getSession()->text()->clickLastOnLine($text, $line, $button, $count, self::modifiers($modifiers));
+    }
+
     #[When('/^I (double-|triple-|right-|middle-)?click on the text "([^"]+)" in the (?:box|frame|dialog|panel|window) "([^"]+)"(?: with "([^"]+)")?$/')]
     public function clickTextInBox(string $kind, string $text, string $title, string $modifiers = ''): void
     {
