@@ -211,7 +211,12 @@ final class Keys
 
         $char = 0 !== ($bits & 1) ? \mb_strtoupper($base) : $base;
         if (0 !== ($bits & 4)) {
-            $char = self::control($char, $name);
+            $control = self::control($char);
+            if (null === $control) {
+                // No control code, as for Ctrl+, or Ctrl+1: a terminal speaking the kitty keyboard protocol sends CSI u
+                return \sprintf("\x1b[%d;%du", \mb_ord($base), $modifier);
+            }
+            $char = $control;
         }
 
         return self::alt($bits).$char;
@@ -225,7 +230,7 @@ final class Keys
         return 0 !== ($bits & 2) ? "\x1b" : '';
     }
 
-    private static function control(string $char, string $name): string
+    private static function control(string $char): ?string
     {
         // Ctrl clears the two high bits of @, A to Z and [ \ ] ^ _: Ctrl+@ is NUL, Ctrl+A is 1, Ctrl+_ is 31
         $upper = \strtoupper($char);
@@ -237,7 +242,7 @@ final class Keys
             '2' => "\x00",
             '-' => "\x1f",
             '?' => "\x7f",
-            default => throw new \InvalidArgumentException(\sprintf('Key "%s" has no control code.', $name)),
+            default => null,
         };
     }
 }
