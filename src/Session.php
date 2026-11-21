@@ -246,8 +246,7 @@ final class Session
 
     /**
      * Turns the wheel over a cell.
-     */
-    /**
+     *
      * @param list<string> $modifiers Shift, Alt, Ctrl
      */
     public function scroll(int $line, int $column, string $direction, int $notches = 1, array $modifiers = []): void

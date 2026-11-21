@@ -21,9 +21,8 @@ use Symfony\Component\EventDispatcher\EventSubscriberInterface;
 /**
  * Picks the driver a scenario's tags ask for, and stops the application after it.
  *
- * A scenario or feature tagged with a configured driver name, like @process or
- *
- * @in_process, runs on that driver.
+ * A scenario or feature tagged with the name of a configured driver, @in_process
+ * or @process, runs on that driver.
  */
 final class SessionListener implements EventSubscriberInterface
 {

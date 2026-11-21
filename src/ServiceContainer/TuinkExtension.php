@@ -82,7 +82,7 @@ final class TuinkExtension implements Extension
             ->info('Runs the application in the Behat process, on a VirtualTerminal')
             ->children()
             ->scalarNode('factory')
-            ->info('PHP file returning a callable(VirtualTerminal $terminal): Tui, relative to the Behat base path')
+            ->info('PHP file returning a callable(VirtualTerminal $terminal, Launch $launch): Tui, relative to the Behat base path')
             ->isRequired()
             ->cannotBeEmpty()
             ->end()
