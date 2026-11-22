@@ -249,7 +249,7 @@ class TuiContext implements TuinkAwareContextInterface
         $this->getSession()->assertLineNotContains($number, $text);
     }
 
-    #[Then('/^the "([^"]+)" field should (not )?contain "([^"]*)"$/')]
+    #[Then('/^the "([^"]+)" field should (not )?contain "([^"]+)"$/')]
     public function assertFieldContains(string $selector, string $not, string $text): void
     {
         '' === $not ? $this->getSession()->assertFieldContains($selector, $text) : $this->getSession()->assertFieldNotContains($selector, $text);
@@ -273,7 +273,7 @@ class TuiContext implements TuinkAwareContextInterface
         'a' === $which ? $this->getSession()->text()->assertColored($text) : $this->getSession()->text()->assertNotColored($text);
     }
 
-    #[Then('/^the line showing "([^"]+)" should (not )?contain "([^"]*)"$/')]
+    #[Then('/^the line showing "([^"]+)" should (not )?contain "([^"]+)"$/')]
     public function assertLineShowingContains(string $anchor, string $not, string $text): void
     {
         '' === $not ? $this->getSession()->text()->assertLineShowingContains($anchor, $text) : $this->getSession()->text()->assertLineShowingNotContains($anchor, $text);
@@ -400,7 +400,7 @@ class TuiContext implements TuinkAwareContextInterface
         );
     }
 
-    #[Then('/^the element "([^"]+)" should (not )?contain "([^"]*)"$/')]
+    #[Then('/^the element "([^"]+)" should (not )?contain "([^"]+)"$/')]
     public function assertElementContains(string $selector, string $not, string $text): void
     {
         '' === $not ? $this->getSession()->assertSeeIn($selector, $text) : $this->getSession()->assertNotSeeIn($selector, $text);

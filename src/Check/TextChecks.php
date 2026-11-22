@@ -65,7 +65,7 @@ final readonly class TextChecks
     public function assertLineShowingNotContains(string $anchor, string $text): void
     {
         $this->session->waitUntil(
-            fn (): bool => null !== $this->lineShowing($anchor) && !\str_contains((string) $this->lineShowing($anchor), $text),
+            fn (): bool => null !== ($line = $this->lineShowing($anchor)) && !\str_contains($line, $text),
             fn (): string => $this->failure($anchor, \sprintf('contains "%s"', $text)),
         );
     }
@@ -78,6 +78,10 @@ final readonly class TextChecks
      */
     public function clickLastOnLine(string $text, int $line, string $button = Mouse::LEFT, int $count = 1, array $modifiers = []): void
     {
+        // A line off the screen will never show the text: say so now rather than after the timeout
+        if ($line < 1 || $line > $this->session->getRows()) {
+            throw new \OutOfRangeException(\sprintf('Line %d is off the %dx%d screen.', $line, $this->session->getColumns(), $this->session->getRows()));
+        }
         $column = null;
         $this->session->waitUntil(
             function () use ($text, $line, &$column): bool {
@@ -111,8 +115,6 @@ final readonly class TextChecks
 
     private function describe(string $text): string
     {
-        $styles = \array_map(static fn (Style $s): string => $s->describe(), $this->session->getTextStyles($text));
-
-        return 1 === \count(\array_unique($styles)) ? $styles[0] : \implode(' | ', $styles);
+        return Style::describeAll($this->session->getTextStyles($text));
     }
 }
