@@ -34,6 +34,8 @@ use Symfony\Component\Tui\Widget\TextWidget;
  */
 final class DemoApp
 {
+    private const LOADING = 'Status: loading';
+
     private const HELP = <<<'HELP'
         ╭─ Help ──────────────╮
         │ Ctrl+S  save name   │
@@ -72,7 +74,7 @@ final class DemoApp
         // SGR mouse reports, and focus in and out
         $tui->getTerminal()->write("\x1b[?1000h\x1b[?1002h\x1b[?1006h\x1b[?1004h");
 
-        $status = new TextWidget('Status: loading')->setId('status');
+        $status = new TextWidget(self::LOADING)->setId('status');
         $size = new TextWidget('')->setId('size');
         $name = new InputWidget()
             ->setId('name')
@@ -154,6 +156,10 @@ final class DemoApp
         // on a loaded machine cannot outlast.
         $readyAfter = \getenv('DEMO_READY_AFTER');
         EventLoop::delay(\is_numeric($readyAfter) ? (float) $readyAfter : 0.3, static function () use ($tui, $status): void {
+            // A save or a copy before then keeps its message
+            if (self::LOADING !== $status->getText()) {
+                return;
+            }
             $status->setText('Status: ready');
             $tui->requestRender();
         });
