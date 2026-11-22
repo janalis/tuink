@@ -15,7 +15,7 @@ use Janalis\Tuink\Check\BoxChecks;
 use Janalis\Tuink\Check\FileChecks;
 use Janalis\Tuink\Check\TerminalChecks;
 use Janalis\Tuink\Driver\DriverInterface;
-use Janalis\Tuink\Driver\FirstOutput;
+use Janalis\Tuink\Driver\TerminalTakeover;
 use Janalis\Tuink\Driver\WidgetTreeProviderInterface;
 use Janalis\Tuink\Exception\DriverException;
 use Janalis\Tuink\Exception\ExpectationException;
@@ -100,7 +100,7 @@ final class Session
     }
 
     /**
-     * Seconds the application may take to write anything once started.
+     * Seconds a start waits for the application to put the terminal in raw mode.
      */
     public function getStartTimeout(): float
     {
@@ -121,7 +121,7 @@ final class Session
         $this->rows = $rows ?? $this->rows;
         $this->driver->start($this->columns, $this->rows, $this->launch->withWorkspace($this->getWorkspace()->path));
         // Starting PHP on a loaded machine takes seconds, longer than a step may wait
-        FirstOutput::await($this->driver, $this->startTimeout);
+        TerminalTakeover::await($this->driver, $this->startTimeout);
         // The first output may have been the whole frame: quiet counts from now then
         $this->settleFrom('' === $this->getScreenText() ? null : \microtime(true));
     }

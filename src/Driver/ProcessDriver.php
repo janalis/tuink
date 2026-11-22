@@ -114,6 +114,11 @@ final class ProcessDriver implements DriverInterface, WidgetTreeProviderInterfac
         return $this->running?->process->isRunning() ?? false;
     }
 
+    public function isInLineMode(): bool
+    {
+        return $this->running()->isInLineMode();
+    }
+
     public function getExitCode(): ?int
     {
         return $this->running?->getExitCode();

@@ -11,6 +11,7 @@ declare(strict_types=1);
 
 namespace Janalis\Tuink\Driver;
 
+use Janalis\Tuink\Exception\DriverException;
 use Janalis\Tuink\Launch;
 use Symfony\Component\Tui\Terminal\ScreenBuffer;
 
@@ -41,6 +42,14 @@ interface DriverInterface
      * Whether the application is still running; false once it quit by itself.
      */
     public function isRunning(): bool;
+
+    /**
+     * Whether the terminal still reads input a line at a time and echoes it, as before the application switched it to
+     * raw mode: keys sent then are echoed, and Ctrl+S pauses the output.
+     *
+     * @throws DriverException When the application is not started, for a driver that runs it in a process
+     */
+    public function isInLineMode(): bool;
 
     /**
      * The exit code once the application exited, null while it runs or when the driver cannot know it.

@@ -71,7 +71,7 @@ final class TuinkExtension implements Extension
             ->end()
             ->floatNode('start_timeout')
             ->info(
-                'Seconds the application may take to write anything once started, as starting PHP on a loaded machine takes seconds; 0 does not wait, for applications that write nothing before their first input',
+                'Seconds a start waits for the application to put the terminal in raw mode, as starting PHP on a loaded machine takes seconds; one still in line mode then goes on if it wrote, and fails to start if it did not; 0 does not wait',
             )
             ->min(0)
             ->defaultValue(10.0)

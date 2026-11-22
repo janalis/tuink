@@ -17,7 +17,7 @@
             ]
         },
         "LessThan": {
-            "ignore": ["Janalis\\Tuink\\Session::settleFrom", "Janalis\\Tuink\\Driver\\FirstOutput::await"]
+            "ignore": ["Janalis\\Tuink\\Session::settleFrom", "Janalis\\Tuink\\Driver\\TerminalTakeover::await"]
         },
         // How long the process driver drains the pty while it waits for the probe: only an application
         // that takes longer than one 5 ms poll to answer would notice, as a slower step

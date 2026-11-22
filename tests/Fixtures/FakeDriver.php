@@ -67,6 +67,11 @@ final class FakeDriver implements DriverInterface
         return null !== $this->screen;
     }
 
+    public function isInLineMode(): bool
+    {
+        return false;
+    }
+
     public function getExitCode(): ?int
     {
         return null;

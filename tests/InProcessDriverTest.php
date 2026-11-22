@@ -147,6 +147,11 @@ final class InProcessDriverTest extends TestCase
         }
     }
 
+    public function testAVirtualTerminalHasNoLineMode(): void
+    {
+        $this->assertFalse($this->demo()->isInLineMode());
+    }
+
     public function testStopBeforeStartDoesNothing(): void
     {
         $driver = new InProcessDriver(static fn () => null);

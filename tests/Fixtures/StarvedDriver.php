@@ -55,6 +55,11 @@ final readonly class StarvedDriver implements DriverInterface
         return $this->driver->isRunning();
     }
 
+    public function isInLineMode(): bool
+    {
+        return $this->driver->isInLineMode();
+    }
+
     public function getExitCode(): ?int
     {
         return $this->driver->getExitCode();

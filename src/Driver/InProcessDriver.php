@@ -162,6 +162,14 @@ final class InProcessDriver implements DriverInterface, WidgetTreeProviderInterf
         return null !== $this->tui && $this->tui->isRunning();
     }
 
+    /**
+     * A virtual terminal has no line mode: the application gets every key.
+     */
+    public function isInLineMode(): bool
+    {
+        return false;
+    }
+
     public function getExitCode(): ?int
     {
         return null;

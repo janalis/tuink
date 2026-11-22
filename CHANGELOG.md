@@ -24,5 +24,5 @@ Version numbers follow [Semantic Versioning 2.0.0](https://semver.org/spec/v2.0.
 - Frame steps that read, check and click inside the frame whose top border carries a title, and steps for where texts are relative to each other.
 - The process driver puts the application's standard error on the terminal, as a terminal does, so console questions and errors written there show.
 - The process driver ends an application whose test run died without stopping it, like a test runner killed on timeout, instead of leaving it running.
-- Starting the app waits up to `start_timeout` for its first output, longer than a step, so keys do not reach a terminal it has not taken over yet; a start past it fails.
+- Starting the app waits up to `start_timeout` for it to put the terminal in raw mode, longer than a step, so keys do not reach a terminal it has not taken over yet; one that stays in line mode goes on then if it wrote, and fails to start if it did not.
 - Terminal state steps: the clipboard (OSC 52), DEC private modes (mouse, bracketed paste, alternate screen, focus events), the cursor's visibility, position and shape, and focus in and out reports.

@@ -133,20 +133,33 @@ final class RunningProcess
     {
         $pid = $this->process->getPid() ?? throw new DriverException('Cannot resize: the application is not running.');
 
-        [$tty, $warning] = Warnings::capture(fn (): string|false => \file_get_contents($this->ttyFile));
-        if (false === $tty || '' === $tty) {
+        [$tty, $warning] = $this->ttyName();
+        if (null === $tty) {
             throw new DriverException(\sprintf('Cannot resize the terminal of process %d: its name is unknown (%s).', $pid, $warning ?? 'not written yet'));
         }
         $out = [];
         $code = null;
-        $flag = 'Darwin' === \PHP_OS_FAMILY ? '-f' : '-F';
-        \exec(\sprintf('stty %s %s cols %d rows %d 2>&1', $flag, \escapeshellarg($tty), $columns, $rows), $out, $code);
+        \exec(self::stty($tty, \sprintf('cols %d rows %d', $columns, $rows)), $out, $code);
         if (0 !== $code) {
             throw new DriverException(\sprintf('Cannot resize the terminal of process %d: %s', $pid, \implode("\n", $out)));
         }
 
         // The pty is not the child's controlling terminal, so the kernel does not signal it
         \exec('kill -WINCH '.$pid);
+    }
+
+    /**
+     * Whether the pty still reads input a line at a time; it does until the application turns canonical mode off. A pty
+     * the launcher has not named yet, or one stty cannot read, counts as in the line mode every pty starts in.
+     */
+    public function isInLineMode(): bool
+    {
+        [$tty] = $this->ttyName();
+        $out = [];
+        $code = null;
+        \exec(self::stty($tty ?? '', arguments: '-a'), $out, $code);
+
+        return 0 !== $code || 1 === \preg_match('/(?<![-\w])icanon\b/', \implode(' ', $out));
     }
 
     /**
@@ -160,5 +173,25 @@ final class RunningProcess
     public function getExitCode(): ?int
     {
         return $this->process->isRunning() ? null : $this->process->getExitCode();
+    }
+
+    /**
+     * The name of the pty, which the launcher writes before it runs the command, and the warning reading it raised.
+     *
+     * @return array{?string, ?string}
+     */
+    private function ttyName(): array
+    {
+        [$tty, $warning] = Warnings::capture(fn (): string|false => \file_get_contents($this->ttyFile));
+
+        return [false === $tty || '' === $tty ? null : $tty, $warning];
+    }
+
+    /**
+     * The stty command that reads or sets the pty, which is not the caller's terminal, with its errors in its output.
+     */
+    private static function stty(string $tty, string $arguments): string
+    {
+        return \sprintf('stty %s %s %s 2>&1', 'Darwin' === \PHP_OS_FAMILY ? '-f' : '-F', \escapeshellarg($tty), $arguments);
     }
 }

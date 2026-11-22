@@ -23,10 +23,10 @@ use Janalis\Tuink\Exception\DriverException;
 final class TerminalTakeover
 {
     /**
-     * Returns once the application wrote and left line mode, or exited. One that wrote but stays in line mode for
-     * $timeout seconds reads lines, and goes on; one still silent then is stopped. A timeout of 0 does not wait.
+     * Returns once the application left line mode, or exited. One that wrote but stays in line mode for $timeout
+     * seconds reads lines, and goes on; one still silent then is stopped. A timeout of 0 does not wait.
      *
-     * @throws DriverException When the application wrote nothing within $timeout seconds
+     * @throws DriverException When the application neither wrote nor left line mode within $timeout seconds
      */
     public static function await(DriverInterface $driver, float $timeout): void
     {
@@ -37,8 +37,9 @@ final class TerminalTakeover
         $wrote = false;
 
         while ($driver->isRunning()) {
-            $wrote = $driver->pump(0.01) || $wrote;
-            if ($wrote && !$driver->isInLineMode()) {
+            // Each look at the mode runs stty: a pump in between keeps them few
+            $wrote = $driver->pump(0.05) || $wrote;
+            if (!$driver->isInLineMode()) {
                 return;
             }
             if (\microtime(true) < $deadline) {
@@ -49,7 +50,10 @@ final class TerminalTakeover
             }
             $driver->stop();
 
-            throw new DriverException(\sprintf('The application has written nothing to its terminal within %.1f seconds of its start; raise start_timeout if it starts this slowly.', $timeout));
+            throw new DriverException(\sprintf(
+                'The application has neither written to its terminal nor taken it over within %.1f seconds of its start; raise start_timeout if it starts this slowly.',
+                $timeout,
+            ));
         }
     }
 }
