@@ -197,7 +197,11 @@ final class InProcessDriverTest extends TestCase
         $driver = $this->demo();
         $driver->getTui()->getTerminal()->write('STALE');
         $driver->resize(columns: 50, rows: 12);
-        $driver->pump(0.05);
+        // The repaint comes on the Tui's next tick, which a loaded machine delays
+        $deadline = \microtime(true) + 5.0;
+        do {
+            $driver->pump(0.05);
+        } while (!\str_contains($driver->getScreen()->getScreen(), 'Size: 50x12') && \microtime(true) < $deadline);
 
         $this->assertStringNotContainsString('STALE', $driver->getScreen()->getScreen());
         $this->assertStringContainsString('Size: 50x12', $driver->getScreen()->getScreen());

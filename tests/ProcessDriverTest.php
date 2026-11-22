@@ -109,8 +109,8 @@ final class ProcessDriverTest extends TestCase
 
     public function testEnvironment(): void
     {
-        $driver = new ProcessDriver(['/bin/sh', '-c', 'printf "%s %s %s" "$TERM" "$GREETING" "$(stty size)"; sleep 5'], null, ['GREETING' => 'hi']);
-        $this->session = new Session($driver, 70, 20, 2.0, startTimeout: 0.5);
+        $driver = new ProcessDriver(['/bin/sh', '-c', 'stty -icanon; printf "%s %s %s" "$TERM" "$GREETING" "$(stty size)"; sleep 5'], null, ['GREETING' => 'hi']);
+        $this->session = new Session($driver, 70, 20, 2.0);
         // The terminal type is the driver's, not the one of the terminal the tests run in
         $term = [\getenv('TERM'), $_SERVER['TERM'] ?? null, $_ENV['TERM'] ?? null];
         \putenv('TERM=dumb');
@@ -275,7 +275,7 @@ final class ProcessDriverTest extends TestCase
     public function testATerminalWhoseModeIsUnknownCountsAsInLineMode(string $forget): void
     {
         $driver = new ProcessDriver(['/bin/sh', '-c', $forget.'; stty raw -echo; printf ready; sleep 5']);
-        $this->session = new Session($driver, 20, 3, timeout: 0.1, startTimeout: 0.5);
+        $this->session = new Session($driver, 20, 3, timeout: 0.1, startTimeout: 2.0);
         $this->session->start();
 
         $this->assertSame('ready', $this->session->getScreenText());
@@ -315,11 +315,11 @@ final class ProcessDriverTest extends TestCase
     public function testAnApplicationThatStaysInLineModeStartsOnceTheStartTimeoutPassed(): void
     {
         $driver = new ProcessDriver(['/bin/sh', '-c', 'printf ready; sleep 5']);
-        $this->session = new Session($driver, 20, 3, timeout: 0.1, startTimeout: 0.5);
+        $this->session = new Session($driver, 20, 3, timeout: 0.1, startTimeout: 2.0);
         $start = \microtime(true);
         $this->session->start();
 
-        $this->assertGreaterThanOrEqual(0.5, \microtime(true) - $start);
+        $this->assertGreaterThanOrEqual(2.0, \microtime(true) - $start);
         $this->assertTrue($driver->isRunning());
         $this->assertTrue($driver->isInLineMode());
         $this->assertSame('ready', $this->session->getScreenText());
@@ -412,7 +412,7 @@ final class ProcessDriverTest extends TestCase
             $this->markTestSkipped('This test needs the pcntl extension.');
         }
         // -1 is no child at all; an inherited watchdog would be one, and would block a blocking wait for good
-        $this->session = new Session(new ProcessDriver([\PHP_BINARY, '-r', 'echo -1 === pcntl_wait($status, \WNOHANG) ? "no child" : "a child", "\n"; sleep(5);']), 20, 3, 5.0, startTimeout: 0.5);
+        $this->session = new Session(new ProcessDriver([\PHP_BINARY, '-r', 'system("stty -icanon"); echo -1 === pcntl_wait($status, \WNOHANG) ? "no child" : "a child", "\n"; sleep(5);']), 20, 3, 5.0);
         $this->session->start();
 
         $this->session->assertSee('no child');
@@ -422,7 +422,7 @@ final class ProcessDriverTest extends TestCase
     public function testWithoutPsTheWatchdogStandsDown(): void
     {
         // Nothing on the PATH: the watchdog cannot tell who the parent is, and must not take that for PHP being gone
-        $this->session = new Session(new ProcessDriver(['/bin/sh', '-c', 'echo up; while :; do /bin/sleep 1; done'], env: ['PATH' => '/nonexistent']), 20, 3, 5.0, startTimeout: 0.5);
+        $this->session = new Session(new ProcessDriver(['/bin/sh', '-c', '/bin/stty -icanon; echo up; while :; do /bin/sleep 1; done'], env: ['PATH' => '/nonexistent']), 20, 3, 5.0);
         $this->session->start();
         $this->session->assertSee('up');
 
@@ -539,11 +539,11 @@ final class ProcessDriverTest extends TestCase
 
     public function testTheLaunchReachesTheCommand(): void
     {
-        $driver = new ProcessDriver(['/bin/sh', '-c', 'printf "%s|%s|%s|%s|%s" "$1" "$2" "$TUINK_A" "$TUINK_B" "$(pwd -P)"; sleep 5', 'sh', '%workspace%/first'], '%workspace%', [
+        $driver = new ProcessDriver(['/bin/sh', '-c', 'stty -icanon; printf "%s|%s|%s|%s|%s" "$1" "$2" "$TUINK_A" "$TUINK_B" "$(pwd -P)"; sleep 5', 'sh', '%workspace%/first'], '%workspace%', [
             'TUINK_A' => '%workspace%/configured',
             'TUINK_B' => 'configured',
         ]);
-        $this->session = new Session($driver, 200, 5, 5.0, startTimeout: 0.5);
+        $this->session = new Session($driver, 200, 5, 5.0);
         $this->session->setLaunch(new Launch(['%workspace%/x'], ['TUINK_B' => 'scenario']));
         $this->session->start();
         $workspace = $this->session->getWorkspace()->path;
@@ -554,8 +554,8 @@ final class ProcessDriverTest extends TestCase
 
     public function testTheErrorOutputIsTheTerminalToo(): void
     {
-        $driver = new ProcessDriver(['/bin/sh', '-c', 'echo out; echo err >&2; [ -t 2 ] && echo "stderr is a tty"; sleep 5']);
-        $this->session = new Session($driver, 40, 5, 5.0, startTimeout: 0.5);
+        $driver = new ProcessDriver(['/bin/sh', '-c', 'stty -icanon; echo out; echo err >&2; [ -t 2 ] && echo "stderr is a tty"; sleep 5']);
+        $this->session = new Session($driver, 40, 5, 5.0);
         $this->session->start();
 
         $this->session->assertScreenEquals("out\nerr\nstderr is a tty");
@@ -652,8 +652,8 @@ final class ProcessDriverTest extends TestCase
 
     public function testAnEscapeSequenceSplitAcrossWrites(): void
     {
-        $driver = new ProcessDriver(['/bin/sh', '-c', 'printf "\\033[3"; sleep 0.3; printf "1mX"; sleep 5']);
-        $this->session = new Session($driver, 20, 5, 2.0, startTimeout: 0.5);
+        $driver = new ProcessDriver(['/bin/sh', '-c', 'stty -icanon; printf "\\033[3"; sleep 0.3; printf "1mX"; sleep 5']);
+        $this->session = new Session($driver, 20, 5, 2.0);
         $this->session->start();
         $this->session->assertSee('X');
 
