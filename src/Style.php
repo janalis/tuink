@@ -186,4 +186,16 @@ final class Style
 
         return [] === $parts ? 'plain' : \implode(', ', $parts);
     }
+
+    /**
+     * What the cells of a text look like: one description when they all look the same, else one per cell.
+     *
+     * @param list<self> $styles
+     */
+    public static function describeAll(array $styles): string
+    {
+        $descriptions = \array_map(static fn (self $s): string => $s->describe(), $styles);
+
+        return 1 === \count(\array_unique($descriptions)) ? $descriptions[0] : \implode(' | ', $descriptions);
+    }
 }

@@ -102,6 +102,30 @@ final class SessionActionsTest extends TestCase
         $this->assertSame([], $this->received);
     }
 
+    public function testClickingTheLastOccurrenceOnALineOffTheScreenFailsAtOnce(): void
+    {
+        $session = $this->recorder();
+        // The first and last lines are on the 21x8 screen: the first is clicked, the last fails on what it shows
+        $session->text()->clickLastOnLine('p', line: 1);
+        $this->assertSame(["\x1b[<0;3;1M", "\x1b[<0;3;1m"], $this->received);
+        try {
+            $session->text()->clickLastOnLine('p', line: 8);
+            $this->fail('The click was expected to fail.');
+        } catch (ExpectationException $e) {
+            $this->assertStringContainsString('Line 8 does not show "p".', $e->getMessage());
+        }
+
+        // Off the screen: said at once, not as the text missing after the timeout
+        foreach ([0, 9] as $line) {
+            try {
+                $session->text()->clickLastOnLine('p', $line);
+                $this->fail('The click was expected to fail.');
+            } catch (\OutOfRangeException $e) {
+                $this->assertSame(\sprintf('Line %d is off the 21x8 screen.', $line), $e->getMessage());
+            }
+        }
+    }
+
     public function testClickingTextAfterAWideCharacter(): void
     {
         // On "世xy", 世 fills columns 1 and 2, so y is in column 4

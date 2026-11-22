@@ -1059,9 +1059,7 @@ final class Session
 
     private function describeStyles(string $text): string
     {
-        $styles = \array_map(static fn (Style $s): string => $s->describe(), $this->getTextStyles($text));
-
-        return 1 === \count(\array_unique($styles)) ? $styles[0] : \implode(' | ', $styles);
+        return Style::describeAll($this->getTextStyles($text));
     }
 
     private function checkOnScreen(int $line, int $column): void

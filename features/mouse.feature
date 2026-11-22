@@ -26,11 +26,11 @@ Feature: Clicking, scrolling and dragging
     Then I should not see "You picked"
 
   Scenario: The last occurrence on a line
-    # Line 1 is "Tuink demo": the text steps would right-click its first "n", in column 4
-    When I right-click on the last "n" on line 1
-    Then I should see "Right click at 1:4"
-    When I right-click on the last "o" on line 1 with "Ctrl"
-    Then I should see "Right click at 1:10"
+    # Line 2 is "Status: loading", then "Status: ready": the text steps would right-click its first "t" and "a"
+    When I right-click on the last "t" on line 2
+    Then I should see "Right click at 2:4"
+    When I right-click on the last "a" on line 2 with "Ctrl"
+    Then I should see "Right click at 2:11"
 
   Scenario: Modifiers
     When I click on the text "Red" with "Ctrl"
