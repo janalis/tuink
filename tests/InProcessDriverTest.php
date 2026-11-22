@@ -402,6 +402,63 @@ final class InProcessDriverTest extends TestCase
         $this->assertSame([], \array_values(\array_diff(EventLoop::getIdentifiers(), $before)));
     }
 
+    public function testAStartThatThrowsHalfWayStopsTheTuiBeforeTheShutdown(): void
+    {
+        /** @var list<string> $calls */
+        $calls = [];
+        $driver = new InProcessDriver(static function (VirtualTerminal $terminal) use (&$calls): InProcessApplicationInterface {
+            return new RecordingApplication(
+                new class(terminal: $terminal) extends Tui {
+                    #[\Override]
+                    public function start(): void
+                    {
+                        parent::start();
+
+                        throw new \RuntimeException('no first frame');
+                    }
+                },
+                $calls,
+            );
+        });
+        $this->driver = $driver;
+
+        try {
+            $driver->start(20, rows: 5);
+            $this->fail('The start was expected to fail.');
+        } catch (\RuntimeException $e) {
+            $this->assertSame('no first frame', $e->getMessage());
+        }
+
+        $this->assertSame(['boot: not running, ', 'shutdown: not running, '], $calls);
+        $this->assertFalse($driver->isStarted());
+    }
+
+    public function testAnApplicationWhoseTuiQuitsIsShutDownAtOnceAndOnlyOnce(): void
+    {
+        /** @var list<string> $calls */
+        $calls = [];
+        $driver = new InProcessDriver(static function (VirtualTerminal $terminal) use (&$calls): InProcessApplicationInterface {
+            return new RecordingApplication(new Tui(terminal: $terminal), $calls);
+        });
+        $this->driver = $driver;
+        $driver->start(20, rows: 5);
+        $driver->pump(0.0);
+        $running = $calls;
+
+        // As a quit key does
+        $driver->getApplication()?->getTui()->stop();
+        $driver->pump(0.0);
+        $quit = $calls;
+        // The steps after the quit still reach it
+        $this->assertInstanceOf(RecordingApplication::class, $driver->getApplication());
+        $driver->pump(0.0);
+        $driver->stop();
+
+        $this->assertSame(['boot: not running, '], $running);
+        $this->assertSame(['boot: not running, ', 'shutdown: not running, '], $quit);
+        $this->assertSame(['boot: not running, ', 'shutdown: not running, '], $calls);
+    }
+
     public function testAStopThatThrowsStillShutsTheApplicationDown(): void
     {
         $calls = [];
