@@ -89,7 +89,7 @@ The `Launch` carries what the scenario starts the application with: its argument
 
 Your entry point does the same with the real terminal and calls `run()`. The driver starts the `Tui` and turns the Revolt event loop in short slices, so timers and async work run as they do under `run()`.
 
-When your entry point does more around `run()`, such as starting servers, arming timers or saving a session after it returns, return an `InProcessApplicationInterface` instead of the `Tui`. The driver calls `boot()` before it starts the `Tui`, and `shutdown()` once the `Tui` stopped, at the end of the scenario or on `I restart the app`. A `boot()` that throws must undo its own work: the driver does not call `shutdown()` after it.
+When your entry point does more around `run()`, such as starting servers, arming timers or saving a session after it returns, return an `InProcessApplicationInterface` instead of the `Tui`. The driver calls `boot()` before it starts the `Tui`, and `shutdown()` once the `Tui` stopped: as soon as it quits by itself, or at the end of the scenario or on `I restart the app`. A `boot()` that throws must undo its own work: the driver does not call `shutdown()` after it.
 
 ```php
 use Janalis\Tuink\Driver\InProcessApplicationInterface;

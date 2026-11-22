@@ -37,6 +37,11 @@ final class InProcessDriver implements DriverInterface, WidgetTreeProviderInterf
     private ?VirtualTerminal $terminal = null;
     private ?Tui $tui = null;
     private ?InProcessApplicationInterface $application = null;
+
+    /**
+     * Whether the application booted and was not shut down yet.
+     */
+    private bool $booted = false;
     private ?ScreenBuffer $screen = null;
     private TerminalObserver $observer;
     /** @var array<string, true> Event loop callbacks that existed before the application */
@@ -138,6 +143,7 @@ final class InProcessDriver implements DriverInterface, WidgetTreeProviderInterf
         // As an entry point does: set up, then run. A boot that throws cleans up after itself, as it would before run()
         try {
             $this->application?->boot();
+            $this->booted = true;
         } catch (\Throwable $e) {
             $this->application = null;
             $this->release();
@@ -147,8 +153,9 @@ final class InProcessDriver implements DriverInterface, WidgetTreeProviderInterf
         try {
             $tui->start();
         } catch (\Throwable $e) {
-            // Booted but never run: the shutdown still owes what the boot started
-            $this->shutDown();
+            // Booted but never run: the start may have got far enough to be stopped, and the shutdown still owes what the
+            // boot started
+            $this->stop();
 
             throw $e;
         }
@@ -172,11 +179,23 @@ final class InProcessDriver implements DriverInterface, WidgetTreeProviderInterf
     private function shutDown(): void
     {
         try {
-            $this->application?->shutdown();
+            $this->shutDownApplication();
         } finally {
             $this->application = null;
             $this->release();
         }
+    }
+
+    /**
+     * Runs the code after run() once: when the Tui quits by itself, as on a quit key, or at the latest when it is stopped.
+     */
+    private function shutDownApplication(): void
+    {
+        if (!$this->booted) {
+            return;
+        }
+        $this->booted = false;
+        $this->application?->shutdown();
     }
 
     /**
@@ -242,6 +261,10 @@ final class InProcessDriver implements DriverInterface, WidgetTreeProviderInterf
         $terminal = $this->terminal();
         // The Tui's own ticker runs on the loop, as under Tui::run(): it renders what input and timers changed
         self::runLoop(\max(0.0, $seconds));
+        // Run() returned: what the entry point does after it, like saving, shows before the scenario ends
+        if (!$this->tui()->isRunning()) {
+            $this->shutDownApplication();
+        }
 
         return $this->flushOutput($terminal);
     }
