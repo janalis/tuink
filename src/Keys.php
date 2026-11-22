@@ -200,17 +200,11 @@ final class Keys
             throw new \InvalidArgumentException(\sprintf('Unknown key "%s".', $name));
         }
         $bits = $modifier - 1;
-        if (0 !== ($bits & 8)) {
-            // No legacy encoding carries Super: CSI u names the unshifted character and every modifier
-            return \sprintf("\x1b[%d;%du", \mb_ord(\mb_strtolower($base)), $modifier);
-        }
-        if (0 !== ($bits & 4) && 0 !== ($bits & 1) && !\ctype_alpha($base)) {
-            // No control code carries Shift with a character that is not a letter, as for Ctrl+Shift+-: CSI u names both
-            return \sprintf("\x1b[%d;%du", \mb_ord($base), $modifier);
-        }
-        if (0 !== ($bits & 4) && 0 !== ($bits & 3) && 1 === \strlen($base) && \ctype_alpha($base)) {
-            // A control code cannot carry Shift, nor Alt cleanly: CSI u names the letter and every modifier
-            return \sprintf("\x1b[%d;%du", \ord(\strtolower($base)), $modifier);
+        $ctrl = 0 !== ($bits & 4);
+        // No legacy encoding carries Super, nor Shift with Ctrl, nor Alt with Ctrl on a letter cleanly: CSI u names the key
+        // and every modifier
+        if (0 !== ($bits & 8) || ($ctrl && (0 !== ($bits & 1) || (0 !== ($bits & 2) && \ctype_alpha($base))))) {
+            return self::csiU($base, $modifier);
         }
 
         // A letter names a key, whatever its case, as with Ctrl: only Shift makes it a capital
@@ -223,12 +217,21 @@ final class Keys
             $control = self::control($char);
             if (null === $control) {
                 // No control code, as for Ctrl+, or Ctrl+1: a terminal speaking the kitty keyboard protocol sends CSI u
-                return \sprintf("\x1b[%d;%du", \mb_ord($base), $modifier);
+                return self::csiU($base, $modifier);
             }
             $char = $control;
         }
 
         return self::alt($bits).$char;
+    }
+
+    /**
+     * The CSI u form of the kitty keyboard protocol, which names a key by its unshifted character: a letter in either
+     * case is the same key.
+     */
+    private static function csiU(string $base, int $modifier): string
+    {
+        return \sprintf("\x1b[%d;%du", \mb_ord(\mb_strtolower($base)), $modifier);
     }
 
     /**
