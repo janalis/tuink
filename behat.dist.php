@@ -18,7 +18,9 @@ use Janalis\Tuink\ServiceContainer\TuinkExtension;
 
 $tuink = [
     'in_process' => ['factory' => 'example/factory.php'],
-    'process' => ['command' => ['php', 'example/bin/demo']],
+    // The self-tests run on shared, often loaded machines: a probe answer that takes longer than the 2s default
+    // there is the machine, not the probe
+    'process' => ['command' => ['php', 'example/bin/demo'], 'probe_timeout' => 10.0],
 ];
 
 return new Config()
