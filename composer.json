@@ -31,7 +31,7 @@
         "symfony/tui": "^8.2@beta"
     },
     "require-dev": {
-        "carthage-software/mago": "1.60.*",
+        "carthage-software/mago": "1.60.* || 1.61.*",
         "infection/infection": "^0.35.12",
         "phpunit/phpunit": "^13.4"
     },
